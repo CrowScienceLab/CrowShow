@@ -19,5 +19,7 @@ PDF 수업 자료를 오프라인에서 프레젠테이션처럼 활용하는 Cr
 - 제작자 표시: `Crow Science Lab`
 - 대상: Windows x64
 - 코드 서명: 없음
+- SHA-256: `5fe1646ee068cfbb68d4e33a577052f53ebe75f4e68f97c507f05a6ccbeb0384`
 
-설치 전에 `WINDOWS_SECURITY.md`의 미서명 앱 안내와 `SHA256SUMS.txt`를 확인하십시오.
+설치 전에 [Windows 설치 보안 안내](https://github.com/CrowScienceLab/CrowShow/blob/v1.0.0/WINDOWS_SECURITY.md)와
+`SHA256SUMS.txt`를 확인하십시오.

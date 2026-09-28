@@ -82,7 +82,17 @@ PowerPoint 전체를 복제하지 않습니다.
 
 ---
 
-## 4. 빠른 실행 방법
+## 4. Windows 설치
+
+[GitHub 최신 릴리스](https://github.com/CrowScienceLab/CrowShow/releases/latest)에서
+`CrowShow-v1.0.0-Setup-x64.exe`와 `SHA256SUMS.txt`를 함께 내려받으십시오. 초기 배포판은
+코드 서명이 없어 Windows SmartScreen 경고가 표시될 수 있습니다. 공식 주소와 SHA-256을
+확인하고 [Windows 설치 보안 안내](WINDOWS_SECURITY.md)를 읽은 뒤 설치하십시오.
+
+설치 후 설정의 `PDF 기본 앱 설정`에서 CrowShow를 선택할 수 있습니다. 기존 PDF 기본 앱은
+설치 과정에서 강제로 변경하지 않습니다.
+
+## 5. 개발 모드 빠른 실행 방법
 
 ```bash
 # 1. 의존성 설치
@@ -97,7 +107,7 @@ npm run dev
 
 ---
 
-## 5. 프로젝트 데이터 포맷 (`.crowshow`)
+## 6. 프로젝트 데이터 포맷 (`.crowshow`)
 
 PDF 원본과 분리하여 필기 스트로크, 전환 설정, 슬라이드 설정을 보관할 수 있는 JSON 기반 프로젝트 포맷(`.crowshow`)의 내보내기/가져오기를 지원합니다.
 또한 브라우저 LocalStorage에 문서별로 실시간 자동 저장(Auto-save)됩니다.
