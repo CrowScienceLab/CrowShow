@@ -44,17 +44,6 @@ interface AnnotationCanvasProps {
 
 type DragMode = 'none' | 'move' | 'rotate' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br';
 
-const getEditorOutline = (color: string): string => {
-  const hex = color.match(/^#([0-9a-f]{6})$/i)?.[1];
-  if (!hex) return 'rgba(255, 255, 255, 0.95)';
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.48
-    ? 'rgba(255, 255, 255, 0.95)'
-    : 'rgba(15, 23, 42, 0.9)';
-};
-
 export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
   slideNumber,
   width,
@@ -426,7 +415,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
         setSelectedStrokeId(hitText.id);
         setTextEditor({
           x: Math.max(10, Math.min(width - 470, bounds.minX)),
-          y: Math.max(10, Math.min(height - 270, bounds.minY)),
+          y: Math.max(10, Math.min(height - 170, bounds.minY)),
           text: hitText.text || '',
           strokeId: hitText.id,
           fontSize: hitText.fontSize,
@@ -844,7 +833,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
       setSelectedStrokeId(hitText.id);
       setTextEditor({
         x: Math.max(10, Math.min(width - 470, bounds.minX)),
-        y: Math.max(10, Math.min(height - 270, bounds.minY)),
+        y: Math.max(10, Math.min(height - 170, bounds.minY)),
         text: hitText.text || '',
         strokeId: hitText.id,
         fontSize: hitText.fontSize,
@@ -913,7 +902,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
               onClick={() => {
                 setTextEditor({
                   x: Math.max(10, Math.min(width - 470, selectedBounds.minX)),
-                  y: Math.max(10, Math.min(height - 270, selectedBounds.minY)),
+                  y: Math.max(10, Math.min(height - 170, selectedBounds.minY)),
                   text: selectedStroke.text || '',
                   strokeId: selectedStroke.id,
                   fontSize: selectedStroke.fontSize,
@@ -1039,7 +1028,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
 
           <textarea
             ref={textInputRef}
-            rows={5}
+            rows={2}
             value={textEditor.text}
             placeholder="텍스트를 입력하세요 (Shift+Enter 줄바꿈, Enter 완료)..."
             onChange={(e) => setTextEditor({ ...textEditor, text: e.target.value })}
@@ -1055,17 +1044,15 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
             style={{
               fontFamily: 'system-ui, sans-serif',
               fontSize: `${Math.max(16, penWidth * 4.5)}px`,
-              fontWeight: 600,
+              fontWeight: 400,
               color: textEditor.color || penColor,
-              WebkitTextStroke: `0.55px ${getEditorOutline(textEditor.color || penColor)}`,
-              textShadow: '0 1px 2px rgba(15, 23, 42, 0.55)',
               background: '#ffffff',
               border: '1px solid #cbd5e1',
               borderRadius: '5px',
               padding: '8px 10px',
               outline: 'none',
               width: '100%',
-              minHeight: '132px',
+              minHeight: '66px',
               boxSizing: 'border-box',
               resize: 'both',
             }}

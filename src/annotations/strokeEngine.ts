@@ -76,6 +76,10 @@ export class StrokeEngine {
       ctx.lineWidth = Math.max(1.25, size * 0.075);
       ctx.lineJoin = 'round';
       ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(15, 23, 42, 0.72)';
+      ctx.shadowBlur = Math.max(2, size * 0.12);
+      ctx.shadowOffsetX = Math.max(1, size * 0.035);
+      ctx.shadowOffsetY = Math.max(1, size * 0.07);
       const lines = stroke.text.split('\n');
       const lineHeight = size * 1.35;
       lines.forEach((line, idx) => {
