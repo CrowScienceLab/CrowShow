@@ -3,12 +3,55 @@
   "private": true,
   "version": "1.0.0",
   "author": "Crow Science Lab",
+  "description": "Offline PDF presentation player for classrooms",
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:icon": "node scripts/build-icon.mjs",
+    "desktop:run": "npm run build && npm run build:icon && electron .",
+    "dist:win": "npm run build && npm run build:icon && electron-builder --win nsis --x64",
     "lint": "oxlint",
     "preview": "vite preview"
+  },
+  "build": {
+    "appId": "CrowScienceLab.CrowShow",
+    "productName": "CrowShow",
+    "copyright": "Copyright © 2026 Crow Science Lab",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "!node_modules/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "CrowShow-v${version}-Setup-x64.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CrowShow",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
+    }
   },
   "dependencies": {
     "lucide-react": "^1.48.0",
@@ -22,7 +65,10 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "oxlint": "^1.81.0",
+    "sharp": "^0.35.5",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

@@ -3,7 +3,7 @@ import type { AppSettings } from '../types/settings';
 import type { CrowShowProjectData } from '../types/annotation';
 import type { TransitionType } from '../types/presentation';
 import { AnnotationStore } from '../annotations/annotationStore';
-import { Settings, X, Download, Upload, Moon, Sun, Monitor, FileDown } from 'lucide-react';
+import { Settings, X, Download, Upload, Moon, Sun, Monitor, FileDown, RefreshCw, FileType2 } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -302,6 +302,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Windows 설치판에는 공식 GitHub 업데이트 확인과 사용자 선택형 PDF 기본 앱
                 연결 안내가 제공됩니다.
               </span>
+              {window.crowShowDesktop && (
+                <div className="project-btn-group" style={{ marginTop: '10px' }}>
+                  <button className="btn-secondary" onClick={() => void window.crowShowDesktop?.checkForUpdates()}>
+                    <RefreshCw size={16} />
+                    <span>업데이트 확인</span>
+                  </button>
+                  <button className="btn-secondary" onClick={() => void window.crowShowDesktop?.openPdfDefaults()}>
+                    <FileType2 size={16} />
+                    <span>PDF 기본 앱 설정</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

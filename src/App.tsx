@@ -200,6 +200,23 @@ export const App: React.FC = () => {
     }
   }, [annotationStore]);
 
+  // Windows desktop integration: open PDFs passed by file association or a
+  // second Explorer launch. The bridge is absent in the normal browser build.
+  useEffect(() => {
+    const desktop = window.crowShowDesktop;
+    if (!desktop) return;
+
+    const openPayload = (payload: CrowShowPdfPayload | null) => {
+      if (!payload) return;
+      void loadPdfData(new Uint8Array(payload.bytes), payload.name, payload.size);
+    };
+
+    void desktop.getInitialPdf().then(openPayload).catch((error) => {
+      console.error('Windows PDF open error:', error);
+    });
+    return desktop.onOpenPdf(openPayload);
+  }, [loadPdfData]);
+
   useEffect(() => {
     if (!docInfo) return;
     localStorage.setItem(`crowshow_notes_${docInfo.id}`, JSON.stringify(speakerNotes));
