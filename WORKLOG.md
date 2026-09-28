@@ -45,6 +45,24 @@ Windows 배포 전에는 `DISTRIBUTION.md`의 Crow Science Lab 제작자 정보,
 검증 업데이트, 사용 안내, 미서명 설치 경고 및 사용자 선택형 PDF 연결 요구사항을 모두
 구현하고 실제 설치 환경에서 검증해야 합니다.
 
+## Windows Tauri 2 개발 환경
+
+2026-09-28에 다음 환경 설치와 인식을 확인했습니다.
+
+- Rustup `1.29.1`
+- Rust `1.98.1` stable `x86_64-pc-windows-msvc`
+- Cargo `1.98.1`
+- Rustfmt 및 Clippy
+- Visual Studio Build Tools 2022 / MSVC `14.44.35207`
+- Windows SDK `10.0.26100.0`
+- WebView2 Runtime `153.0.4234.48`
+- `@tauri-apps/cli` `2.12.0`
+- `@tauri-apps/api` `2.12.0`
+
+새 터미널은 사용자 PATH의 `C:\Users\user\.cargo\bin`을 자동으로 사용합니다. 현재 단계는
+도구 설치 완료 상태이며, 다음 단계에서 같은 CrowShow 폴더에 `src-tauri`를 초기화하고
+Electron 네이티브 브리지를 Tauri 명령과 플러그인으로 이관합니다.
+
 ## CrowShow 1.0 주요 기능
 
 - PDF 열기, 드래그 앤 드롭, 최근 파일 다시 열기
