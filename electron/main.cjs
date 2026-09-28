@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, net, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, shell } = require('electron');
 const { createHash } = require('node:crypto');
 const { existsSync } = require('node:fs');
 const { mkdir, readFile, writeFile } = require('node:fs/promises');
@@ -165,6 +165,7 @@ async function checkForUpdates({ manual = false } = {}) {
 }
 
 function createWindow() {
+  Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -172,6 +173,8 @@ function createWindow() {
     minHeight: 640,
     show: false,
     title: 'CrowShow',
+    autoHideMenuBar: true,
+    backgroundColor: '#0b1020',
     icon: path.join(__dirname, '..', 'build', 'icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -191,6 +194,9 @@ function createWindow() {
     if (!url.startsWith('file:')) event.preventDefault();
   });
   mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.webContents.on('did-fail-load', (_event, code, description, validatedUrl) => {
+    console.error('CrowShow renderer load failure:', code, description, validatedUrl);
+  });
   mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   mainWindow.webContents.once('did-finish-load', () => {
     if (pendingPdfPath) mainWindow.webContents.send('desktop:open-pdf', pendingPdfPath);

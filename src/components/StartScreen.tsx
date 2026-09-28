@@ -63,12 +63,12 @@ export const StartScreen: React.FC<StartScreenProps> = ({
         {/* Header */}
         <div className="start-header">
           <div className="start-logo-pill">
-            <img src="/favicon.svg" alt="Crow Show Logo" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
-            <span className="logo-title">Crow Show</span>
+            <img src="./favicon.svg" alt="CrowShow Logo" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
+            <span className="logo-title">CrowShow</span>
           </div>
           <h1 className="start-headline">
             PDF & AI 슬라이드를 위한 다이내믹 프레젠테이션 플레이어 <br />
-            <span className="gradient-text">Crow Show</span>
+            <span className="gradient-text">CrowShow</span>
           </h1>
           <p className="start-subtext">
             PowerPoint급 슬라이드 쇼, 부드러운 전환 효과, 인라인 텍스트 및 벡터 도형, 1.5배 확대경 스포트라이트와 펜 필기를 지원합니다.

@@ -108,9 +108,9 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
     <header className="fluent-header-toolbar">
       {/* Left: Brand, Document Info & File Actions */}
       <div className="toolbar-left-section">
-        <div className="brand-badge" title="Crow Show - Dynamic Presentation Player">
-          <img src="/favicon.svg" alt="Crow Show" style={{ width: '22px', height: '22px', borderRadius: '4px' }} />
-          <span>Crow Show</span>
+        <div className="brand-badge" title="CrowShow - Dynamic Presentation Player">
+          <img src="./favicon.svg" alt="CrowShow" style={{ width: '22px', height: '22px', borderRadius: '4px' }} />
+          <span>CrowShow</span>
         </div>
 
         <div className="toolbar-separator" />

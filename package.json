@@ -12,6 +12,7 @@
     "build:icon": "node scripts/build-icon.mjs",
     "desktop:run": "npm run build && npm run build:icon && electron .",
     "dist:win": "npm run build && npm run build:icon && electron-builder --win nsis --x64",
+    "smoke:desktop": "node scripts/smoke-desktop.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
