@@ -102,13 +102,13 @@ export class StrokeEngine {
     }
 
     if (stroke.tool === 'highlighter') {
-      ctx.globalAlpha = 0.38;
+      ctx.globalAlpha = 0.34;
       ctx.globalCompositeOperation = 'multiply';
       ctx.strokeStyle = stroke.color;
       ctx.fillStyle = stroke.color;
       ctx.lineWidth = stroke.width;
-      ctx.lineCap = 'square';
-      ctx.lineJoin = 'bevel';
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
     } else {
       ctx.globalAlpha = stroke.opacity ?? 1.0;
       ctx.globalCompositeOperation = 'source-over';
@@ -144,6 +144,29 @@ export class StrokeEngine {
       ctx.lineWidth = (pressureWidth(p0) + pressureWidth(p1)) / 2;
       ctx.moveTo(p0.x * canvasWidth, p0.y * canvasHeight);
       ctx.lineTo(p1.x * canvasWidth, p1.y * canvasHeight);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+
+    // A highlighter stroke must be composited exactly once. Drawing every
+    // segment separately makes adjacent segments overlap, producing dark
+    // stripes and increasing opacity while the pointer remains stationary.
+    if (stroke.tool === 'highlighter') {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x * canvasWidth, pts[0].y * canvasHeight);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const midpointX = ((pts[i].x + pts[i + 1].x) / 2) * canvasWidth;
+        const midpointY = ((pts[i].y + pts[i + 1].y) / 2) * canvasHeight;
+        ctx.quadraticCurveTo(
+          pts[i].x * canvasWidth,
+          pts[i].y * canvasHeight,
+          midpointX,
+          midpointY
+        );
+      }
+      const last = pts[pts.length - 1];
+      ctx.lineTo(last.x * canvasWidth, last.y * canvasHeight);
       ctx.stroke();
       ctx.restore();
       return;

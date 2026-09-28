@@ -1,91 +1,32 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import type { AppSettings } from '../types/settings';
-import type { CrowShowProjectData } from '../types/annotation';
 import type { TransitionType } from '../types/presentation';
-import { AnnotationStore } from '../annotations/annotationStore';
-import { Settings, X, Download, Upload, Moon, Sun, Monitor, FileDown, RefreshCw, FileType2 } from 'lucide-react';
+import { Settings, X, Moon, Sun, Monitor, RefreshCw, FileType2 } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: AppSettings;
-  documentName: string;
-  totalSlides: number;
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
-  slideTransitions: Record<number, TransitionType>;
-  speakerNotes: Record<number, string>;
-  onImportProject: (project: CrowShowProjectData) => void;
-  onExportAnnotatedPdf: () => void;
+  desktopAvailable: boolean;
+  onCheckUpdates: () => void;
+  onOpenPdfDefaults: () => void;
   onClose: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
-  documentName,
-  totalSlides,
   onUpdateSettings,
-  slideTransitions,
-  speakerNotes,
-  onImportProject,
-  onExportAnnotatedPdf,
+  desktopAvailable,
+  onCheckUpdates,
+  onOpenPdfDefaults,
   onClose,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const annotationStore = AnnotationStore.getInstance();
-
-  const handleExportProject = () => {
-    const project = annotationStore.exportProjectData(
-      documentName,
-      totalSlides,
-      settings.defaultTransition,
-      settings.transitionDurationMs,
-      slideTransitions,
-      speakerNotes
-    );
-    const jsonStr = JSON.stringify(project, null, 2);
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${documentName.replace(/\.pdf$/i, '')}.crowshow`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportProject = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const project = JSON.parse(text);
-        if (project && project.annotations) {
-          annotationStore.setAllAnnotations(project.annotations);
-          onImportProject(project as CrowShowProjectData);
-          if (project.settings?.transitionType) {
-            onUpdateSettings({
-              defaultTransition: project.settings.transitionType as TransitionType,
-              transitionDurationMs: project.settings.transitionDuration || 400,
-            });
-          }
-          alert('프로젝트 필기 및 발표 설정을 성공적으로 불러왔습니다.');
-        }
-      } catch (err) {
-        alert('올바르지 않은 프로젝트 파일 형식입니다.');
-        console.error(err);
-      }
-    };
-    reader.readAsText(file);
-  };
-
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-card-lg" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card settings-modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="title-with-icon">
             <Settings size={20} className="text-accent" />
-            <h3>프레젠테이션 환경 설정 (Settings)</h3>
+            <h3>환경 설정</h3>
           </div>
           <button className="icon-btn-sm" onClick={onClose}>
             <X size={18} />
@@ -249,43 +190,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
 
-          {/* Project File Storage (.crowshow) */}
-          <div className="settings-row project-row">
-            <div className="settings-label-group">
-              <span className="settings-label">프레젠테이션 프로젝트 데이터 (.crowshow)</span>
-              <span className="settings-desc">
-                필기 데이터와 발표 설정을 독립 파일로 백업하거나 가져옵니다 (PDF 원본 불변)
-              </span>
-            </div>
-            <div className="project-btn-group">
-              <button className="btn-secondary" onClick={onExportAnnotatedPdf}>
-                <FileDown size={16} />
-                <span>필기 포함 PDF</span>
-              </button>
-              <button className="btn-secondary" onClick={handleExportProject}>
-                <Download size={16} />
-                <span>내보내기 (.crowshow)</span>
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload size={16} />
-                <span>가져오기</span>
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept=".crowshow,.json"
-                onChange={handleImportProject}
-              />
-            </div>
-          </div>
-
-          <div className="settings-row project-row">
+          <div className="settings-row settings-about-row">
             <div className="settings-label-group" style={{ width: '100%' }}>
-              <span className="settings-label">CrowShow 1.0.0 · Crow Science Lab</span>
+              <span className="settings-label">CrowShow v1.0 · Crow Science Lab</span>
               <span className="settings-desc">
                 오프라인 PDF 수업을 위한 프레젠테이션 플레이어
               </span>
@@ -302,13 +209,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Windows 설치판에는 공식 GitHub 업데이트 확인과 사용자 선택형 PDF 기본 앱
                 연결 안내가 제공됩니다.
               </span>
-              {window.crowShowDesktop && (
+              {desktopAvailable && (
                 <div className="project-btn-group" style={{ marginTop: '10px' }}>
-                  <button className="btn-secondary" onClick={() => void window.crowShowDesktop?.checkForUpdates()}>
+                  <button className="btn-secondary" onClick={onCheckUpdates}>
                     <RefreshCw size={16} />
                     <span>업데이트 확인</span>
                   </button>
-                  <button className="btn-secondary" onClick={() => void window.crowShowDesktop?.openPdfDefaults()}>
+                  <button className="btn-secondary" onClick={onOpenPdfDefaults}>
                     <FileType2 size={16} />
                     <span>PDF 기본 앱 설정</span>
                   </button>

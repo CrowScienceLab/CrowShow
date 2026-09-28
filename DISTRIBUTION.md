@@ -9,8 +9,8 @@
 - 표시 제작자: `Crow Science Lab`
 - GitHub 조직: `CrowScienceLab`
 - GitHub 저장소: `https://github.com/CrowScienceLab/CrowShow`
-- Windows 앱 식별자: `CrowScienceLab.CrowShow`
-- 설치 경로: `%ProgramFiles%\Crow Science Lab\CrowShow`
+- Windows 앱 식별자: `lab.crowscience.crowshow`
+- 설치 방식: Tauri 2 / Windows WebView2 / NSIS x64 사용자별 설치
 
 ## 업데이트
 
@@ -50,12 +50,12 @@ Smart App Control 경고가 표시될 수 있다. 설치 화면과 GitHub 릴리
 ## PDF 확장자 연결
 
 - 설치 프로그램은 CrowShow를 Windows의 PDF 열기 가능 앱으로 등록한다.
-- ProgID는 `CrowShow.PDF`, 표시 이름은 `CrowShow PDF Presentation`으로 한다.
+- Tauri 번들 설정의 PDF 파일 연결로 Windows `연결 프로그램`에 CrowShow를 등록한다.
 - 기존 PDF 기본 앱을 설치 과정에서 강제로 변경하지 않는다.
 - 설치 완료 화면과 CrowShow 설정에 `PDF 기본 앱 설정` 안내 버튼을 제공한다.
 - 사용자가 동의하면 Windows 기본 앱 설정 화면을 열어 CrowShow를 직접 선택하게 한다.
 - 파일 탐색기의 `연결 프로그램` 목록에서도 CrowShow를 선택할 수 있어야 한다.
-- `CrowShow.exe "%1"`로 전달된 PDF 경로를 시작 시 열도록 구현한다.
+- 설치 프로그램 또는 `연결 프로그램`에서 전달한 PDF 경로를 시작 시 열도록 구현한다.
 - 제거 시 CrowShow가 등록한 항목만 정리하고 다른 PDF 앱의 설정은 변경하지 않는다.
 
 ## GitHub 릴리스 구성
@@ -70,3 +70,6 @@ Smart App Control 경고가 표시될 수 있다. 설치 화면과 GitHub 릴리
 
 GitHub 저장소와 릴리스는 Windows 설치 프로그램, 업데이트 검사, PDF 연결 및 실제 설치
 검증이 완료된 뒤 공개한다.
+
+현재 v1.0.0 Tauri 설치 파일은 `3,593,699 bytes`이며 SHA-256은
+`1a8362ec8c95e2ff6d0d8813bd80b32666002fa900dd7fe6968b152b41063ec1`이다.

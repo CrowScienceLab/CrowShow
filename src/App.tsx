@@ -15,6 +15,14 @@ import { KeyboardShortcutManager, type ShortcutAction } from './presentation/key
 import { SoundEngine } from './utils/soundEngine';
 import { savePdfDocument, loadPdfDocument } from './utils/documentStore';
 import { exportAnnotatedPdf } from './utils/exportAnnotatedPdf';
+import {
+  checkForDesktopUpdates,
+  getInitialDesktopPdf,
+  isDesktopApp,
+  onDesktopOpenPdf,
+  openPdfDefaultApps,
+  type DesktopPdfPayload,
+} from './utils/desktopBridge';
 
 import { StartScreen } from './components/StartScreen';
 import { HeaderToolbar } from './components/HeaderToolbar';
@@ -115,6 +123,7 @@ export const App: React.FC = () => {
   const annotationStore = AnnotationStore.getInstance();
   const pdfCache = PdfCache.getInstance();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectInputRef = useRef<HTMLInputElement | null>(null);
   const audienceWindowRef = useRef<Window | null>(null);
   const panDragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const lastWheelNavigationRef = useRef(0);
@@ -203,18 +212,28 @@ export const App: React.FC = () => {
   // Windows desktop integration: open PDFs passed by file association or a
   // second Explorer launch. The bridge is absent in the normal browser build.
   useEffect(() => {
-    const desktop = window.crowShowDesktop;
-    if (!desktop) return;
+    if (!isDesktopApp()) return;
+    let unsubscribe = () => {};
+    let disposed = false;
 
-    const openPayload = (payload: CrowShowPdfPayload | null) => {
+    const openPayload = (payload: DesktopPdfPayload | null) => {
       if (!payload) return;
       void loadPdfData(new Uint8Array(payload.bytes), payload.name, payload.size);
     };
 
-    void desktop.getInitialPdf().then(openPayload).catch((error) => {
+    void getInitialDesktopPdf().then(openPayload).catch((error) => {
       console.error('Windows PDF open error:', error);
     });
-    return desktop.onOpenPdf(openPayload);
+    void onDesktopOpenPdf(openPayload).then((stop) => {
+      if (disposed) stop();
+      else unsubscribe = stop;
+    });
+    const updateTimer = window.setTimeout(() => void checkForDesktopUpdates(false), 1800);
+    return () => {
+      disposed = true;
+      unsubscribe();
+      window.clearTimeout(updateTimer);
+    };
   }, [loadPdfData]);
 
   useEffect(() => {
@@ -465,6 +484,60 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleExportAnnotatedPdf = async () => {
+    try {
+      await exportAnnotatedPdf(pdfDoc!, docInfo!.name);
+    } catch (error) {
+      console.error(error);
+      alert('필기 포함 PDF를 만드는 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleExportProject = () => {
+    if (!docInfo) return;
+    const project = annotationStore.exportProjectData(
+      docInfo.name,
+      docInfo.totalSlides,
+      settings.defaultTransition,
+      settings.transitionDurationMs,
+      slideTransitions,
+      speakerNotes
+    );
+    const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${docInfo.name.replace(/\.pdf$/i, '')}.crowshow`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleImportProjectFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const project = JSON.parse(String(event.target?.result ?? '')) as CrowShowProjectData;
+        if (!project?.annotations) throw new Error('Missing annotations');
+        annotationStore.setAllAnnotations(project.annotations);
+        setSlideTransitions((project.slideTransitions ?? {}) as Record<number, TransitionType>);
+        setSpeakerNotes(project.speakerNotes ?? {});
+        if (project.settings?.transitionType) {
+          const type = project.settings.transitionType as TransitionType;
+          const durationMs = project.settings.transitionDuration || 400;
+          setSettings((current) => ({ ...current, defaultTransition: type, transitionDurationMs: durationMs }));
+          setTransitionConfig((current) => ({ ...current, type, durationMs }));
+        }
+        alert('프로젝트 필기 및 발표 설정을 성공적으로 불러왔습니다.');
+      } catch (error) {
+        console.error(error);
+        alert('올바르지 않은 프로젝트 파일 형식입니다.');
+      } finally {
+        if (projectInputRef.current) projectInputRef.current.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const handleOpenRecent = async (id: string) => {
     try {
       soundEngine.playClick();
@@ -566,65 +639,16 @@ export const App: React.FC = () => {
           if (f) handleOpenFile(f);
         }}
       />
-
-      {/* TOP HEADER TOOLBAR (Hidden in presentation mode) */}
-      {viewMode === 'normal' && (
-        <HeaderToolbar
-          documentName={docInfo.name}
-          activeTool={activeTool}
-          penColor={penColor}
-          penWidth={penWidth}
-          highlighterColor={highlighterColor}
-          highlighterWidth={highlighterWidth}
-          laserColor={laserColor}
-          shapeType={shapeType}
-          shapeFill={shapeFill}
-          transitionType={effectiveTransitionType}
-          canUndo={annotationStore.canUndo()}
-          canRedo={annotationStore.canRedo()}
-          isSoundEnabled={isSoundEnabled}
-          onToggleSound={handleToggleSound}
-          onOpenFile={() => fileInputRef.current?.click()}
-          onStartPresentation={handleStartPresentation}
-          onOpenPresenterMode={() => {
-            soundEngine.playClick();
-            setViewMode('presenter');
-          }}
-          onSelectTool={handleSelectTool}
-          onPenColorChange={setPenColor}
-          onPenWidthChange={setPenWidth}
-          onHighlighterColorChange={setHighlighterColor}
-          onHighlighterWidthChange={setHighlighterWidth}
-          onLaserColorChange={setLaserColor}
-          onShapeTypeChange={setShapeType}
-          onShapeFillChange={setShapeFill}
-          onTransitionChange={(trans: TransitionType) => {
-            soundEngine.playClick();
-            setTransitionConfig((prev) => ({ ...prev, type: trans }));
-            setSlideTransitions((transitions) => ({ ...transitions, [currentSlide]: trans }));
-          }}
-          onUndo={() => {
-            soundEngine.playClick();
-            annotationStore.undo();
-          }}
-          onRedo={() => {
-            soundEngine.playClick();
-            annotationStore.redo();
-          }}
-          onClearSlide={() => {
-            soundEngine.playClick();
-            annotationStore.clearSlide(currentSlide);
-          }}
-          onClearAll={() => {
-            soundEngine.playClick();
-            setShowClearConfirm(true);
-          }}
-          onOpenSettings={() => {
-            soundEngine.playClick();
-            setShowSettingsModal(true);
-          }}
-        />
-      )}
+      <input
+        ref={projectInputRef}
+        type="file"
+        accept=".crowshow,.json,application/json"
+        style={{ display: 'none' }}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleImportProjectFile(file);
+        }}
+      />
 
       {/* MAIN WORKSPACE BODY */}
       <div className="presentation-stage-wrapper">
@@ -713,9 +737,68 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM STATUS BAR (Normal mode only) */}
+      {/* BOTTOM TOOL DOCK AND STATUS BAR (Normal mode only) */}
       {viewMode === 'normal' && (
-        <BottomStatusBar
+        <div className="workspace-bottom-controls">
+          <HeaderToolbar
+            documentName={docInfo.name}
+            activeTool={activeTool}
+            penColor={penColor}
+            penWidth={penWidth}
+            highlighterColor={highlighterColor}
+            highlighterWidth={highlighterWidth}
+            laserColor={laserColor}
+            shapeType={shapeType}
+            shapeFill={shapeFill}
+            transitionType={effectiveTransitionType}
+            canUndo={annotationStore.canUndo()}
+            canRedo={annotationStore.canRedo()}
+            isSoundEnabled={isSoundEnabled}
+            onToggleSound={handleToggleSound}
+            onOpenFile={() => fileInputRef.current?.click()}
+            onStartPresentation={handleStartPresentation}
+            onOpenPresenterMode={() => {
+              soundEngine.playClick();
+              setViewMode('presenter');
+            }}
+            onSelectTool={handleSelectTool}
+            onPenColorChange={setPenColor}
+            onPenWidthChange={setPenWidth}
+            onHighlighterColorChange={setHighlighterColor}
+            onHighlighterWidthChange={setHighlighterWidth}
+            onLaserColorChange={setLaserColor}
+            onShapeTypeChange={setShapeType}
+            onShapeFillChange={setShapeFill}
+            onTransitionChange={(trans: TransitionType) => {
+              soundEngine.playClick();
+              setTransitionConfig((prev) => ({ ...prev, type: trans }));
+              setSlideTransitions((transitions) => ({ ...transitions, [currentSlide]: trans }));
+            }}
+            onUndo={() => {
+              soundEngine.playClick();
+              annotationStore.undo();
+            }}
+            onRedo={() => {
+              soundEngine.playClick();
+              annotationStore.redo();
+            }}
+            onClearSlide={() => {
+              soundEngine.playClick();
+              annotationStore.clearSlide(currentSlide);
+            }}
+            onClearAll={() => {
+              soundEngine.playClick();
+              setShowClearConfirm(true);
+            }}
+            onExportAnnotatedPdf={() => void handleExportAnnotatedPdf()}
+            onExportProject={handleExportProject}
+            onImportProject={() => projectInputRef.current?.click()}
+            onOpenSettings={() => {
+              soundEngine.playClick();
+              setShowSettingsModal(true);
+            }}
+          />
+          <BottomStatusBar
           currentSlide={currentSlide}
           totalSlides={docInfo.totalSlides}
           zoomFactor={zoomFactor}
@@ -739,7 +822,8 @@ export const App: React.FC = () => {
             soundEngine.playClick();
             setShowGoToModal(true);
           }}
-        />
+          />
+        </div>
       )}
 
       {/* FLOATING TOOLBAR (Presentation mode only) */}
@@ -809,22 +893,9 @@ export const App: React.FC = () => {
       {showSettingsModal && (
         <SettingsModal
           settings={settings}
-          documentName={docInfo.name}
-          totalSlides={docInfo.totalSlides}
-          slideTransitions={slideTransitions}
-          speakerNotes={speakerNotes}
-          onImportProject={(project: CrowShowProjectData) => {
-            setSlideTransitions((project.slideTransitions ?? {}) as Record<number, TransitionType>);
-            setSpeakerNotes(project.speakerNotes ?? {});
-          }}
-          onExportAnnotatedPdf={async () => {
-            try {
-              await exportAnnotatedPdf(pdfDoc, docInfo.name);
-            } catch (error) {
-              console.error(error);
-              alert('필기 포함 PDF를 만드는 중 오류가 발생했습니다.');
-            }
-          }}
+          desktopAvailable={isDesktopApp()}
+          onCheckUpdates={() => void checkForDesktopUpdates(true)}
+          onOpenPdfDefaults={() => void openPdfDefaultApps()}
           onUpdateSettings={(newSet) => {
             soundEngine.playClick();
             if (newSet.laserColor) setLaserColor(newSet.laserColor);

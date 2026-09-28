@@ -59,9 +59,11 @@ Windows 배포 전에는 `DISTRIBUTION.md`의 Crow Science Lab 제작자 정보,
 - `@tauri-apps/cli` `2.12.0`
 - `@tauri-apps/api` `2.12.0`
 
-새 터미널은 사용자 PATH의 `C:\Users\user\.cargo\bin`을 자동으로 사용합니다. 현재 단계는
-도구 설치 완료 상태이며, 다음 단계에서 같은 CrowShow 폴더에 `src-tauri`를 초기화하고
-Electron 네이티브 브리지를 Tauri 명령과 플러그인으로 이관합니다.
+새 터미널은 사용자 PATH의 `C:\Users\user\.cargo\bin`을 자동으로 사용합니다.
+
+Android SDK는 기본 위치가 아닌 `C:\Android\Sdk`에 설치되어 있습니다. `ANDROID_HOME`,
+`JAVA_HOME`, `NDK_HOME`과 SDK 도구 PATH를 사용자 환경변수로 연결했고 Android 36,
+Build Tools 36.0.0, Platform Tools 37.0.1, NDK 28.2 및 Rust Android 대상 4종을 확인했습니다.
 
 ## CrowShow 1.0 주요 기능
 
@@ -90,3 +92,15 @@ Electron 네이티브 브리지를 Tauri 명령과 플러그인으로 이관합�
 문서 ID는 PDF 내용의 SHA-256 지문으로 생성됩니다. 같은 PDF를 다시 열면 기존 필기와
 메모가 연결됩니다. 브라우저 저장소를 삭제하면 자동 저장 데이터도 삭제되므로 중요한
 수업 자료는 `.crowshow` 파일로 별도 내보내기 하십시오.
+
+## 2026-09-29 Tauri v1.0 교체 작업
+
+- `src-tauri`를 초기화하고 Windows 배포 런타임을 Tauri 2/WebView2로 전환
+- 창 최소 크기를 1140×680으로 지정하고 일반 화면 도구와 PDF 파일명을 하단 2단 도크로 이동
+- 환경설정을 2열 카드 구조로 줄이고 저장 기능을 도크의 풀다운 메뉴로 이동
+- 형광펜 한 획을 단일 합성 경로로 렌더링하여 정지 시 농도 증가와 구간 줄무늬 제거
+- GitHub 업데이트 확인, 공식 릴리스 주소 제한, 설치 파일 SHA-256 검증 후 실행 구현
+- PDF 파일 연결 및 두 번째 실행에서 기존 창으로 PDF 전달 구현
+- Electron 소스·빌드 도구·112MB 배포물은 삭제하지 않고 `D:\App coding\_archive`로 이동
+- 최종 NSIS: `release\CrowShow-v1.0.0-Setup-x64.exe` (`3,593,699 bytes`)
+- SHA-256: `1a8362ec8c95e2ff6d0d8813bd80b32666002fa900dd7fe6968b152b41063ec1`

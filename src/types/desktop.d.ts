@@ -15,4 +15,5 @@ interface CrowShowDesktopBridge {
 
 interface Window {
   crowShowDesktop?: CrowShowDesktopBridge;
+  __TAURI_INTERNALS__?: unknown;
 }

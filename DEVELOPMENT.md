@@ -8,6 +8,8 @@
 
 - **운영체제**: Windows 11 (macOS 및 Linux 웹 브라우저 호환)
 - **Node.js**: v18.0.0 이상 (v20+ 권장)
+- **Rust**: stable MSVC 툴체인
+- **Windows 구성요소**: Visual Studio Build Tools 2022, Windows SDK, WebView2 Runtime
 - **패키지 매니저**: npm (또는 pnpm / yarn)
 - **기본 포트**: `http://localhost:5173`
 
@@ -39,6 +41,14 @@ npm run build
 npm run preview
 ```
 
+### E. Tauri Windows 앱 실행 및 패키징
+```powershell
+npm.cmd run tauri:dev
+npm.cmd run tauri:build
+```
+
+NSIS 설치 파일은 `src-tauri\target\release\bundle\nsis`에 생성됩니다.
+
 ---
 
 ## 3. 핵심 모듈별 개발 및 수정 포인트
@@ -68,18 +78,12 @@ npm run preview
 
 ---
 
-## 4. 네이티브 데스크톱 앱 패키징 로드맵
+## 4. 네이티브 데스크톱 앱 구조
 
-현재 웹 기반으로 완벽히 독립 구현되어 있으므로 아래 두 가지 방식으로 네이티브 데스크톱 `.exe`로 패키징할 수 있습니다.
-
-### 옵션 1: Tauri 2.0 (초경량 권장)
-1. `npx @tauri-apps/cli init` 실행
-2. `tauri.conf.json`의 `frontendDist`를 `../dist`로 지정
-3. `npm run tauri build` 실행 시 단일 실행 파일(`.exe`, 용량 ~10MB 미만) 생성 완료
-
-### 옵션 2: Electron (검증된 호환성)
-1. 루트에 `electron/main.js` 파일 생성 (BrowserWindow 생성 및 `http://localhost:5173` 또는 `dist/index.html` 로드)
-2. `electron-builder`를 사용하여 윈도우 인스톨러 생성
+- `src-tauri/src/lib.rs`: PDF 파일 연결, 단일 인스턴스, GitHub 업데이트 확인·다운로드·SHA-256 검증, Windows 기본 앱 설정 연결
+- `src-tauri/tauri.conf.json`: 창 최소 크기, WebView2 번들, NSIS, 아이콘 및 PDF 연결 설정
+- `src/utils/desktopBridge.ts`: 브라우저·Tauri 런타임 차이를 격리하는 프런트엔드 브리지
+- Electron 런타임과 Chromium은 배포물에 포함하지 않습니다.
 
 ---
 

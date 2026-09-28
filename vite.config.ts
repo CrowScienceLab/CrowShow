@@ -7,4 +7,9 @@ export default defineConfig({
   // relative to the document rather than rooted at /.
   base: './',
   plugins: [react()],
+  server: {
+    watch: {
+      ignored: ['**/src-tauri/**', '**/tmp/**', '**/release/**'],
+    },
+  },
 })

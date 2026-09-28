@@ -2,14 +2,16 @@
 
 ## 1. 기술 스택 검토 및 선정 이유
 
-### A. 데스크톱 런타임: Web-First Desktop Ready (React 19 + TypeScript + Vite)
+### A. 데스크톱 런타임: Tauri 2 + WebView2 (React 19 + TypeScript + Vite)
 - **후보 비교**:
   - **Electron**: Node.js와 Chromium 풀 번들을 탑재하여 번들 용량이 크고(150MB+), 윈도우 환경에 따른 빌드/권한 복잡도가 높음.
   - **Tauri**: Rust 백엔드와 OS Webview2(Windows 11)를 활용하여 경량이나, Rust 툴체인 선행 설치가 요구됨.
-  - **선정 방식 (Web-First Desktop Ready)**:
+  - **선정 방식**:
     - React 19 + TypeScript + Vite 기반의 고성능 SPA 아키텍처로 구현.
     - 브라우저 표준 Web API(Fullscreen API, Pointer Events, File System API, LocalStorage/IndexedDB, Web Worker)만을 사용하여 OS 및 브라우저 어디서나 즉시 실행 가능.
-    - 플랫폼 종속적인 코드를 완전히 분리하여 설계하였으므로, 향후 필요 시 `@tauri-apps/api` 또는 Electron의 `main.js` 래퍼 한 줄만 추가하여 네이티브 `.exe` 패키징이 가능.
+    - Windows 앱은 `src-tauri`의 Rust 백엔드와 운영체제 WebView2를 사용합니다.
+    - PDF 파일 연결, 단일 인스턴스 및 SHA-256 검증 업데이트는 Tauri 명령으로 분리했습니다.
+    - 같은 React 코어는 향후 Windows 완료본을 기준으로 Android Tauri 프로젝트에 재사용합니다.
 
 ### B. PDF 렌더링 엔진: Mozilla PDF.js (`pdfjs-dist`)
 - 브라우저 및 Node 생태계에서 가장 검증된 순수 웹 기반 PDF 파싱/렌더링 라이브러리.

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ToolType, ShapeType } from '../types/annotation';
 import type { TransitionType } from '../types/presentation';
 import { ColorPickerPopover } from './ColorPickerPopover';
@@ -23,6 +23,11 @@ import {
   VolumeX,
   Shapes,
   Type,
+  Save,
+  ChevronDown,
+  FileDown,
+  Download,
+  Upload,
 } from 'lucide-react';
 
 interface HeaderToolbarProps {
@@ -56,6 +61,9 @@ interface HeaderToolbarProps {
   onRedo: () => void;
   onClearSlide: () => void;
   onClearAll: () => void;
+  onExportAnnotatedPdf: () => void;
+  onExportProject: () => void;
+  onImportProject: () => void;
   onOpenSettings: () => void;
 }
 
@@ -90,12 +98,25 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
   onRedo,
   onClearSlide,
   onClearAll,
+  onExportAnnotatedPdf,
+  onExportProject,
+  onImportProject,
   onOpenSettings,
 }) => {
   const [showColorPopover, setShowColorPopover] = useState(false);
   const [showShapePopover, setShowShapePopover] = useState(false);
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
   const colorButtonRef = useRef<HTMLButtonElement | null>(null);
   const shapeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const saveMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const closeSaveMenu = (event: PointerEvent) => {
+      if (!saveMenuRef.current?.contains(event.target as Node)) setShowSaveMenu(false);
+    };
+    document.addEventListener('pointerdown', closeSaveMenu);
+    return () => document.removeEventListener('pointerdown', closeSaveMenu);
+  }, []);
 
   const initialColorTab =
     activeTool === 'highlighter'
@@ -105,16 +126,12 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
       : 'pen';
 
   return (
-    <header className="fluent-header-toolbar">
-      {/* Left: Brand, Document Info & File Actions */}
+    <div className="fluent-bottom-toolbar" aria-label="CrowShow 작업 도구">
       <div className="toolbar-left-section">
-        <div className="brand-badge" title="CrowShow - Dynamic Presentation Player">
+        <div className="brand-badge" title="CrowShow 1.0 · Crow Science Lab">
           <img src="./favicon.svg" alt="CrowShow" style={{ width: '22px', height: '22px', borderRadius: '4px' }} />
-          <span>CrowShow</span>
+          <span>CrowShow <small>v1.0</small></span>
         </div>
-
-        <div className="toolbar-separator" />
-
         <button className="btn-fluent-action" onClick={onOpenFile} title="새 PDF 파일 열기">
           <FolderOpen size={16} />
           <span>열기</span>
@@ -126,16 +143,14 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
         </div>
       </div>
 
-      {/* Center: Slide Show & Drawing Tools */}
       <div className="toolbar-center-section">
-        {/* Main Slide Show Button */}
         <button
           className="btn-slideshow-primary"
           onClick={onStartPresentation}
           title="전체화면 슬라이드 쇼 시작 (F5)"
         >
           <Play size={16} fill="currentColor" />
-          <span>슬라이드 쇼 (F5)</span>
+          <span>슬라이드 쇼</span>
         </button>
 
         <button
@@ -144,12 +159,11 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
           title="발표자 모드 (Presenter Studio)"
         >
           <MonitorPlay size={16} />
-          <span>발표자 뷰</span>
+          <span>발표자</span>
         </button>
 
         <div className="toolbar-separator" />
 
-        {/* Tools Group */}
         <div className="tool-button-group">
           <button
             className={`btn-tool ${activeTool === 'select' ? 'active' : ''}`}
@@ -186,7 +200,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             <span className="color-dot-indicator" style={{ backgroundColor: highlighterColor }} />
           </button>
 
-          {/* Text Annotation Tool */}
           <button
             className={`btn-tool ${activeTool === 'text' ? 'active' : ''}`}
             onClick={() => {
@@ -199,7 +212,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             <span className="color-dot-indicator" style={{ backgroundColor: penColor }} />
           </button>
 
-          {/* Shape Tool Button & Popover */}
           <div className="popover-anchor">
             <button
               ref={shapeButtonRef}
@@ -222,7 +234,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
               <ShapePickerPopover
                 currentShape={shapeType}
                 isFilled={shapeFill}
-                placement="bottom"
+                placement="top"
                 onSelectShape={(s) => {
                   onShapeTypeChange(s);
                   onSelectTool('shape');
@@ -266,7 +278,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
             <Search size={16} />
           </button>
 
-          {/* Color & Width Popover Button */}
           <div className="popover-anchor">
             <button
               ref={colorButtonRef}
@@ -293,7 +304,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
                 onHighlighterColorChange={onHighlighterColorChange}
                 onHighlighterWidthChange={onHighlighterWidthChange}
                 onLaserColorChange={onLaserColorChange}
-                placement="bottom"
+                placement="top"
                 onClose={() => setShowColorPopover(false)}
               />
             )}
@@ -302,7 +313,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
 
         <div className="toolbar-separator" />
 
-        {/* Transition Selector */}
         <div className="transition-select-group">
           <Layers size={14} className="text-muted" />
           <select
@@ -324,9 +334,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
         </div>
       </div>
 
-      {/* Right: Sound, History & Settings */}
       <div className="toolbar-right-section">
-        {/* Sound Toggle Button */}
         <button
           className={`btn-sound-toggle ${isSoundEnabled ? 'active' : ''}`}
           onClick={onToggleSound}
@@ -337,7 +345,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
 
         <div className="toolbar-separator" />
 
-        {/* Undo / Redo */}
         <div className="history-button-group">
           <button
             className="btn-icon-subtle"
@@ -359,7 +366,6 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
 
         <div className="toolbar-separator" />
 
-        {/* Clear Annotations */}
         <button
           className="btn-icon-subtle"
           onClick={onClearSlide}
@@ -375,11 +381,40 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({
           <span style={{ fontSize: '11px', fontWeight: 600 }}>All</span>
         </button>
 
-        {/* Settings */}
+        <div className="popover-anchor" ref={saveMenuRef}>
+          <button
+            className={`btn-save-menu ${showSaveMenu ? 'active' : ''}`}
+            onClick={() => setShowSaveMenu((open) => !open)}
+            title="저장 및 프로젝트 가져오기"
+            aria-haspopup="menu"
+            aria-expanded={showSaveMenu}
+          >
+            <Save size={16} />
+            <span>저장</span>
+            <ChevronDown size={13} />
+          </button>
+          {showSaveMenu && (
+            <div className="save-menu-popover" role="menu">
+              <button onClick={() => { setShowSaveMenu(false); onExportAnnotatedPdf(); }}>
+                <FileDown size={16} />
+                <span><strong>필기 포함 PDF</strong><small>필기와 도형을 PDF에 합칩니다</small></span>
+              </button>
+              <button onClick={() => { setShowSaveMenu(false); onExportProject(); }}>
+                <Download size={16} />
+                <span><strong>내보내기</strong><small>.crowshow 프로젝트로 저장합니다</small></span>
+              </button>
+              <button onClick={() => { setShowSaveMenu(false); onImportProject(); }}>
+                <Upload size={16} />
+                <span><strong>가져오기</strong><small>.crowshow 프로젝트를 불러옵니다</small></span>
+              </button>
+            </div>
+          )}
+        </div>
+
         <button className="btn-icon-subtle" onClick={onOpenSettings} title="환경 설정">
           <Settings size={16} />
         </button>
       </div>
-    </header>
+    </div>
   );
 };

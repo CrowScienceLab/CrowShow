@@ -131,19 +131,29 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* HEADER TOOLBAR */
-.fluent-header-toolbar {
-  display: flex;
+/* BOTTOM WORK TOOLBAR */
+.workspace-bottom-controls {
+  flex: 0 0 auto;
+  min-width: 0;
+  background: var(--bg-surface-translucent);
+}
+
+.fluent-bottom-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 42px 50px;
   align-items: center;
-  justify-content: space-between;
-  height: 56px;
-  padding: 0 18px;
+  height: 92px;
+  min-width: 0;
+  padding: 0 12px;
+  column-gap: 12px;
   background: var(--bg-surface-translucent);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border-bottom: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-subtle);
   z-index: 100;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  overflow: visible;
 }
 
 .toolbar-left-section,
@@ -152,6 +162,35 @@ html, body, #root {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.toolbar-center-section {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-self: center;
+  margin: 0;
+}
+
+.toolbar-right-section {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  margin: 0;
+}
+
+.toolbar-left-section {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.fluent-bottom-toolbar button span,
+.fluent-bottom-toolbar .brand-badge,
+.fluent-bottom-toolbar .transition-select-group {
+  white-space: nowrap;
+  word-break: keep-all;
 }
 
 .brand-badge {
@@ -163,6 +202,12 @@ html, body, #root {
   letter-spacing: -0.2px;
   color: var(--text-primary);
   padding-right: 6px;
+}
+
+.brand-badge small {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
 }
 
 .brand-icon {
@@ -194,7 +239,68 @@ html, body, #root {
   border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 500;
-  max-width: 220px;
+  width: 190px;
+  max-width: 190px;
+}
+
+.btn-save-menu {
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.btn-save-menu:hover,
+.btn-save-menu.active {
+  background: var(--accent-subtle);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.save-menu-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 12000;
+  width: 250px;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-popover);
+}
+
+.save-menu-popover button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.save-menu-popover button:hover {
+  background: var(--bg-hover);
+}
+
+.save-menu-popover button > span {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.save-menu-popover strong {
+  font-size: 12px;
+}
+
+.save-menu-popover small {
+  font-size: 10px;
+  color: var(--text-muted);
 }
 
 .doc-icon {
@@ -832,7 +938,7 @@ button {
 
 /* BOTTOM STATUS BAR */
 .fluent-status-bar {
-  height: 44px;
+  height: 38px;
   padding: 0 18px;
   background: var(--bg-surface-translucent);
   backdrop-filter: blur(24px);
@@ -1348,25 +1454,51 @@ button {
 
 /* SETTINGS MODAL */
 .settings-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .settings-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-.settings-row:last-child {
-  border-bottom: none;
+  min-height: 72px;
+  padding: 10px;
+  gap: 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
 }
 .settings-row.project-row {
   flex-direction: column;
   align-items: flex-start;
   gap: 12px;
+}
+
+.settings-modal-card {
+  width: min(640px, 82vw);
+  max-height: min(600px, 78vh);
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-modal-card .modal-header {
+  padding: 11px 15px;
+}
+
+.settings-modal-card .modal-body {
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.settings-modal-card .modal-footer {
+  padding: 9px 14px;
+}
+
+.settings-about-row {
+  grid-column: 1 / -1;
+  min-height: auto;
 }
 
 .settings-label-group {
@@ -1376,13 +1508,13 @@ button {
 }
 
 .settings-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .settings-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -1436,7 +1568,14 @@ button {
 
 .project-btn-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+@media (max-height: 700px) {
+  .settings-modal-card {
+    max-height: 88vh;
+  }
 }
 
 /* PRESENTER STUDIO */
