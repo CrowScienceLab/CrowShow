@@ -2,16 +2,6 @@ import type { AnnotationStroke, NormalizedPoint, ShapeType } from '../types/anno
 import { ShapeEngine } from './shapeEngine';
 
 export class StrokeEngine {
-  private static getContrastColor(color: string): string {
-    const hex = color.match(/^#([0-9a-f]{6})$/i)?.[1];
-    if (!hex) return 'rgba(255, 255, 255, 0.88)';
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    return luminance < 0.48 ? 'rgba(255, 255, 255, 0.9)' : 'rgba(15, 23, 42, 0.88)';
-  }
-
   /**
    * Render a collection of strokes onto a 2D canvas context.
    */
@@ -72,18 +62,10 @@ export class StrokeEngine {
       const font = stroke.fontFamily || "system-ui, sans-serif";
       ctx.font = `600 ${size}px ${font}`;
       ctx.fillStyle = stroke.color;
-      ctx.strokeStyle = this.getContrastColor(stroke.color);
-      ctx.lineWidth = Math.max(1.25, size * 0.075);
-      ctx.lineJoin = 'round';
       ctx.textBaseline = 'top';
-      ctx.shadowColor = 'rgba(15, 23, 42, 0.72)';
-      ctx.shadowBlur = Math.max(2, size * 0.12);
-      ctx.shadowOffsetX = Math.max(1, size * 0.035);
-      ctx.shadowOffsetY = Math.max(1, size * 0.07);
       const lines = stroke.text.split('\n');
       const lineHeight = size * 1.35;
       lines.forEach((line, idx) => {
-        ctx.strokeText(line, x, y + idx * lineHeight);
         ctx.fillText(line, x, y + idx * lineHeight);
       });
       ctx.restore();

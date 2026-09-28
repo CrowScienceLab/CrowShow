@@ -847,6 +847,11 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
     ? currentStrokes.find((s) => s.id === selectedStrokeId) || null
     : null;
   const selectedBounds = selectedStroke ? getStrokeBounds(selectedStroke) : null;
+  const selectedActionTop = selectedBounds
+    ? selectedBounds.minY >= 50
+      ? selectedBounds.minY - 46
+      : selectedBounds.maxY + 10
+    : 6;
 
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: `${width}px`, height: `${height}px` }}>
@@ -878,7 +883,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
         <div
           style={{
             position: 'absolute',
-            top: `${Math.max(6, selectedBounds.minY - 38)}px`,
+            top: `${selectedActionTop}px`,
             left: `${selectedBounds.cx}px`,
             transform: 'translateX(-50%)',
             zIndex: 45,
@@ -1030,7 +1035,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
             ref={textInputRef}
             rows={2}
             value={textEditor.text}
-            placeholder="텍스트를 입력하세요 (Shift+Enter 줄바꿈, Enter 완료)..."
+            placeholder="텍스트 입력 (Enter 완료 · Shift+Enter 줄바꿈)"
             onChange={(e) => setTextEditor({ ...textEditor, text: e.target.value })}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -1043,7 +1048,7 @@ export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
             }}
             style={{
               fontFamily: 'system-ui, sans-serif',
-              fontSize: `${Math.max(16, penWidth * 4.5)}px`,
+              fontSize: '13px',
               fontWeight: 400,
               color: textEditor.color || penColor,
               background: '#ffffff',

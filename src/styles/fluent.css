@@ -1678,6 +1678,23 @@ button {
   .btn-fullscreen-trigger span { display: none; }
 }
 
+@media (max-width: 900px) {
+  .fluent-command-bar { gap: 4px; padding: 0 6px; }
+  .fluent-command-bar .command-button { width: 34px; padding: 0; }
+  .fluent-command-bar .command-button span { display: none; }
+  .command-brand { min-width: 104px; gap: 5px; }
+  .command-brand img { width: 28px; height: 28px; }
+  .command-brand small { display: none; }
+  .command-select-wrap { width: 88px; padding: 0 5px; }
+  .command-select-wrap select { width: 62px; max-width: 62px; }
+  .fluent-status-bar { grid-template-columns: auto auto 1fr auto; gap: 4px; padding: 0 6px; }
+  .status-document-name { display: none; }
+  .status-timer-box { padding: 4px 7px; gap: 5px; }
+  .bottom-tool-dock { gap: 1px; }
+  .status-tool { width: 29px; }
+  .zoom-controls { padding: 3px 4px; }
+}
+
 /* PRESENTER STUDIO */
 .presenter-mode-container {
   position: fixed;

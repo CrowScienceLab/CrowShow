@@ -1,6 +1,6 @@
 [package]
 name = "crowshow"
-version = "1.0.2"
+version = "1.0.4"
 description = "Offline PDF presentation player for classrooms"
 authors = ["Crow Science Lab"]
 license = "MIT"
