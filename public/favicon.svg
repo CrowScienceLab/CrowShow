@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Soft shadow for the crow icon -->
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+    <linearGradient id="blackFeather" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e2430" />
+      <stop offset="60%" stop-color="#0f131a" />
+      <stop offset="100%" stop-color="#05070a" />
+    </linearGradient>
+    <linearGradient id="yellowBeak" x1="0%" y1="0%" x2="100%" y2="80%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="40%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+
+  <!-- Clean White Background with soft rounded corners and crisp border -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2" filter="url(#softShadow)" />
+
+  <!-- Crow Body & Head (Solid Deep Black) -->
+  <path d="M 44 23
+           C 41 18, 35 15, 27 16
+           C 20 17, 14 22, 11 28
+           C 8 34, 9 42, 12 48
+           C 14 51, 13 54, 11 56
+           C 16 55, 21 52, 23 48
+           C 25 50, 29 51, 33 50
+           C 38 48, 42 43, 44 38
+           C 45 35, 45 31, 44 28
+           C 45 26, 45 24, 44 23
+           Z"
+        fill="url(#blackFeather)" />
+
+  <!-- Crow Wing Feather layers for depth -->
+  <path d="M 23 31
+           C 27 33, 33 36, 37 42
+           C 31 43, 25 41, 18 37
+           C 17 34, 20 32, 23 31
+           Z"
+        fill="#262e3d" />
+
+  <!-- Sharp Yellow Beak (황금빛 노란 부리) -->
+  <path d="M 43 23
+           L 57 26
+           C 51 28, 45 30, 42 30
+           C 43 27, 43 25, 43 23
+           Z"
+        fill="url(#yellowBeak)"
+        stroke="#b45309"
+        stroke-width="0.6" />
+
+  <!-- Intelligent Eye (생기 넘치는 눈) -->
+  <circle cx="34" cy="22" r="3.2" fill="#ffffff" />
+  <circle cx="34.5" cy="22" r="1.8" fill="#0f172a" />
+  <circle cx="35.3" cy="21.3" r="0.7" fill="#ffffff" />
+
+  <!-- Cute beak separation line -->
+  <path d="M 44 26 L 54 26.8" stroke="#92400e" stroke-width="0.8" stroke-linecap="round" />
+</svg>
