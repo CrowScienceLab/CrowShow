@@ -1,7 +1,7 @@
 {
   "name": "crowshow",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.2",
   "author": "Crow Science Lab",
   "description": "Offline PDF presentation player for classrooms",
   "type": "module",

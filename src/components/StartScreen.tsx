@@ -1,157 +1,30 @@
 import React, { useState } from 'react';
-import {
-  FileUp,
-  Sparkles,
-  CheckCircle2,
-  Clock,
-  ChevronRight,
-  ShieldCheck,
-  Zap,
-} from 'lucide-react';
+import { Clock, FileUp, FolderOpen, Maximize2, MonitorPlay, Play, Settings } from 'lucide-react';
 import type { RecentPdfDocument } from '../types/pdf';
 
-interface StartScreenProps {
-  onOpenFile: (file: File) => void;
-  onOpenSample: () => void;
-  recentFiles: RecentPdfDocument[];
-  onOpenRecent: (id: string) => void;
-}
+interface StartScreenProps { onOpenFile: (file: File) => void; recentFiles: RecentPdfDocument[]; onOpenRecent: (id: string) => void; }
 
-export const StartScreen: React.FC<StartScreenProps> = ({
-  onOpenFile,
-  onOpenSample,
-  recentFiles,
-  onOpenRecent,
-}) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onOpenFile, recentFiles, onOpenRecent }) => {
   const [isDragging, setIsDragging] = useState(false);
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+  const accept = (file?: File) => {
+    if (!file) return;
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) onOpenFile(file);
+    else alert('PDF 파일(.pdf)만 열 수 있습니다.');
   };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type === 'application/pdf') {
-      onOpenFile(file);
-    } else {
-      alert('PDF 파일(.pdf)만 열 수 있습니다.');
-    }
-  };
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onOpenFile(file);
-    }
-  };
-
-  return (
-    <div className="start-screen-container">
-      {/* Background ambient lighting */}
-      <div className="start-ambient-glow" />
-
-      <div className="start-content-card">
-        {/* Header */}
-        <div className="start-header">
-          <div className="start-logo-pill">
-            <img src="./favicon.svg" alt="CrowShow Logo" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
-            <span className="logo-title">CrowShow</span>
-          </div>
-          <h1 className="start-headline">
-            PDF & AI 슬라이드를 위한 다이내믹 프레젠테이션 플레이어 <br />
-            <span className="gradient-text">CrowShow</span>
-          </h1>
-          <p className="start-subtext">
-            PowerPoint급 슬라이드 쇼, 부드러운 전환 효과, 인라인 텍스트 및 벡터 도형, 1.5배 확대경 스포트라이트와 펜 필기를 지원합니다.
-          </p>
-        </div>
-
-        {/* Drag & Drop Hero Box */}
-        <div
-          className={`dropzone-card ${isDragging ? 'dragging' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-        >
-          <div className="dropzone-icon-bubble">
-            <FileUp size={36} className="text-accent" />
-          </div>
-
-          <h3>PDF 슬라이드를 이곳에 드래그하거나 파일을 선택하세요</h3>
-          <p className="dropzone-desc">
-            NotebookLM, Canva, Keynote, PPTX에서 내보낸 모든 표준 PDF를 지원합니다
-          </p>
-
-          <label className="btn-primary btn-lg file-upload-btn">
-            <span>내 컴퓨터에서 PDF 열기</span>
-            <input
-              type="file"
-              accept=".pdf,application/pdf"
-              style={{ display: 'none' }}
-              onChange={handleFileInput}
-            />
-          </label>
-
-          <div className="sample-quick-trigger">
-            <span>또는 테스트용 샘플 슬라이드로 바로 시작하기:</span>
-            <button className="btn-sample-slide" onClick={onOpenSample}>
-              <Sparkles size={16} />
-              <span>체험용 5-슬라이드 바로 열기</span>
-              <ChevronRight size={14} />
-            </button>
-          </div>
-        </div>
-
-        {/* Feature Highlights Grid */}
-        <div className="features-badge-row">
-          <div className="feature-pill">
-            <CheckCircle2 size={16} className="text-accent" />
-            <span>PDF 원본 100% 무손실 보존</span>
-          </div>
-          <div className="feature-pill">
-            <Zap size={16} className="text-accent" />
-            <span>주변 슬라이드 사전 렌더링 (0ms 딜레이)</span>
-          </div>
-          <div className="feature-pill">
-            <ShieldCheck size={16} className="text-accent" />
-            <span>PowerPoint급 펜 필기 & 레이저 포인터</span>
-          </div>
-        </div>
-
-        {/* Recent Files Section */}
-        {recentFiles && recentFiles.length > 0 && (
-          <div className="recent-files-card">
-            <div className="recent-title">
-              <Clock size={16} />
-              <span>최근 발표 파일</span>
-            </div>
-            <div className="recent-list">
-              {recentFiles.map((rf, idx) => (
-                <div key={idx} className="recent-item">
-                  <div className="recent-info">
-                    <span className="recent-name">{rf.name}</span>
-                    <span className="recent-meta">
-                      {rf.slideCount} 슬라이드 • {rf.date}
-                    </span>
-                  </div>
-                  <button className="btn-text-sm" onClick={() => onOpenRecent(rf.id)}>
-                    열기
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+  return <div className="start-player-shell" onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); accept(e.dataTransfer.files?.[0]); }}>
+    <div className="start-command-preview">
+      <div className="command-brand"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.0c</small></div>
+      <span className="preview-command"><FolderOpen size={16} /> 열기</span><span className="preview-command primary"><Play size={15} /> 슬라이드쇼</span><span className="preview-command"><MonitorPlay size={16} /> 발표자</span><span className="preview-command muted">전환: 페이드</span><span className="preview-spacer" /><Settings size={18} />
     </div>
-  );
+    <div className="empty-slide-workspace"><div className="empty-slide-paper"><img src="./yellow-billed-crow.png" alt="" /><span>PDF 프레젠테이션 영역</span></div></div>
+    <div className="start-status-preview"><span>슬라이드 0 / 0</span><span>PDF 파일을 열어 시작하세요</span><span>00:00</span><span className="preview-tool-dots">↖　✎　▱　T　◇　⌕</span><span>100%</span><Maximize2 size={15} /></div>
+
+    <div className={`start-open-panel ${isDragging ? 'dragging' : ''}`}>
+      <div className="start-panel-heading"><img src="./yellow-billed-crow.png" alt="" /><div><strong>CrowShow</strong><span>오프라인 PDF 프레젠테이션</span></div></div>
+      <div className="compact-dropzone"><FileUp size={25} /><strong>PDF를 여기에 놓으세요</strong><span>또는 아래 버튼으로 파일을 선택하세요</span></div>
+      <label className="btn-primary file-upload-btn"><FolderOpen size={17} /><span>PDF 열기</span><input type="file" accept=".pdf,application/pdf" style={{ display: 'none' }} onChange={(e) => accept(e.target.files?.[0])} /></label>
+      {recentFiles.length > 0 && <div className="compact-recent"><div className="compact-recent-title"><Clock size={14} /> 최근 파일</div>{recentFiles.slice(0, 3).map((file) => <button key={file.id} onClick={() => onOpenRecent(file.id)} title={file.name}><span>{file.name}</span><small>{file.slideCount}장</small></button>)}</div>}
+      <p>파일은 이 컴퓨터 안에서만 처리됩니다.</p>
+    </div>
+  </div>;
 };

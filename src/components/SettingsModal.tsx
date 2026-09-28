@@ -109,36 +109,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             />
           </div>
 
-          {/* Laser Pointer Color */}
-          <div className="settings-row">
-            <div className="settings-label-group">
-              <span className="settings-label">레이저 포인터 색상</span>
-              <span className="settings-desc">발표 포인터 조명 색상</span>
-            </div>
-            <div className="laser-radio-group">
-              <label className="radio-label">
-                <input
-                  type="radio"
-                  name="laserColor"
-                  checked={settings.laserColor === '#ef4444'}
-                  onChange={() => onUpdateSettings({ laserColor: '#ef4444' })}
-                />
-                <span className="laser-dot-badge red"></span>
-                <span>레드 (Red)</span>
-              </label>
-              <label className="radio-label">
-                <input
-                  type="radio"
-                  name="laserColor"
-                  checked={settings.laserColor === '#22c55e'}
-                  onChange={() => onUpdateSettings({ laserColor: '#22c55e' })}
-                />
-                <span className="laser-dot-badge green"></span>
-                <span>그린 (Green)</span>
-              </label>
-            </div>
-          </div>
-
           <div className="settings-row">
             <div className="settings-label-group">
               <span className="settings-label">펜 압력 감지</span>
@@ -148,18 +118,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               type="checkbox"
               checked={settings.enableStylusPressure}
               onChange={(e) => onUpdateSettings({ enableStylusPressure: e.target.checked })}
-            />
-          </div>
-
-          <div className="settings-row">
-            <div className="settings-label-group">
-              <span className="settings-label">레이저 잔상</span>
-              <span className="settings-desc">포인터 이동 궤적을 부드럽게 표시합니다</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={settings.laserTrailEnabled}
-              onChange={(e) => onUpdateSettings({ laserTrailEnabled: e.target.checked })}
             />
           </div>
 
@@ -192,7 +150,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div className="settings-row settings-about-row">
             <div className="settings-label-group" style={{ width: '100%' }}>
-              <span className="settings-label">CrowShow v1.0 · Crow Science Lab</span>
+              <span className="settings-label">CrowShow v1.0c · Crow Science Lab</span>
               <span className="settings-desc">
                 오프라인 PDF 수업을 위한 프레젠테이션 플레이어
               </span>

@@ -1,6 +1,7 @@
 import type { TransitionType } from './presentation';
 
 export type AppTheme = 'light' | 'dark' | 'system';
+export type TransitionSound = 'none' | 'soft' | 'paper' | 'click' | 'chime';
 
 export interface AppSettings {
   theme: AppTheme;
@@ -8,6 +9,7 @@ export interface AppSettings {
   transitionDurationMs: number;
   laserColor: string;
   laserTrailEnabled: boolean;
+  transitionSound: TransitionSound;
   spotlightRadius: number;
   penColor: string;
   penWidth: number;
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   transitionDurationMs: 750,
   laserColor: '#ef4444',
   laserTrailEnabled: true,
+  transitionSound: 'soft',
   spotlightRadius: 180,
   penColor: '#ef4444',
   penWidth: 4,

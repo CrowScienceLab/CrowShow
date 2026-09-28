@@ -8,7 +8,6 @@ import { DEFAULT_SETTINGS } from './types/settings';
 
 import { PdfLoader } from './pdf/pdfLoader';
 import { PdfCache } from './pdf/pdfCache';
-import { createSamplePdfBytes } from './pdf/samplePdf';
 import { AnnotationStore } from './annotations/annotationStore';
 import { PresentationTimer } from './presentation/presentationTimer';
 import { KeyboardShortcutManager, type ShortcutAction } from './presentation/keyboardShortcutManager';
@@ -28,6 +27,7 @@ import { StartScreen } from './components/StartScreen';
 import { HeaderToolbar } from './components/HeaderToolbar';
 import { SlideThumbnailList } from './components/SlideThumbnailList';
 import { BottomStatusBar } from './components/BottomStatusBar';
+import { ToolDock } from './components/ToolDock';
 import { FloatingToolbar } from './components/FloatingToolbar';
 import { TransitionContainer } from './transitions/transitionContainer';
 import { SlideNavButtons } from './components/SlideNavButtons';
@@ -317,13 +317,13 @@ export const App: React.FC = () => {
       if (!docInfo) return;
       const target = Math.max(1, Math.min(docInfo.totalSlides, slideNumber));
       if (target !== currentSlide) {
-        soundEngine.playSlideSwitch();
+        soundEngine.playSlideSwitch(settings.transitionSound);
         setCurrentSlide(target);
         setScreenCurtain('none');
         setPan({ x: 0, y: 0 });
       }
     },
-    [docInfo, currentSlide, soundEngine]
+    [docInfo, currentSlide, soundEngine, settings.transitionSound]
   );
 
   // Tool selection with audio feedback
@@ -550,12 +550,6 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleOpenSamplePresentation = () => {
-    soundEngine.playBeep();
-    const bytes = createSamplePdfBytes();
-    loadPdfData(bytes, 'NotebookLM_AI_Slide_Demo.pdf', bytes.length, false);
-  };
-
   useEffect(() => {
     const allowDrop = (event: DragEvent) => event.preventDefault();
     const openDroppedPdf = (event: DragEvent) => {
@@ -583,7 +577,6 @@ export const App: React.FC = () => {
       <div className="app-container">
         <StartScreen
           onOpenFile={handleOpenFile}
-          onOpenSample={handleOpenSamplePresentation}
           recentFiles={recentFiles}
           onOpenRecent={handleOpenRecent}
         />
@@ -649,6 +642,32 @@ export const App: React.FC = () => {
           if (file) handleImportProjectFile(file);
         }}
       />
+
+      {viewMode === 'normal' && (
+        <HeaderToolbar
+          transitionType={effectiveTransitionType}
+          transitionSound={settings.transitionSound}
+          canUndo={annotationStore.canUndo()}
+          canRedo={annotationStore.canRedo()}
+          onOpenFile={() => fileInputRef.current?.click()}
+          onStartPresentation={handleStartPresentation}
+          onOpenPresenterMode={() => { soundEngine.playClick(); setViewMode('presenter'); }}
+          onTransitionChange={(trans: TransitionType) => { soundEngine.playClick(); setTransitionConfig((prev) => ({ ...prev, type: trans })); setSlideTransitions((transitions) => ({ ...transitions, [currentSlide]: trans })); }}
+          onTransitionSoundChange={(transitionSound) => {
+            soundEngine.setEnabled(transitionSound !== 'none');
+            setIsSoundEnabled(transitionSound !== 'none');
+            setSettings((current) => ({ ...current, transitionSound }));
+          }}
+          onUndo={() => { soundEngine.playClick(); annotationStore.undo(); }}
+          onRedo={() => { soundEngine.playClick(); annotationStore.redo(); }}
+          onClearSlide={() => { soundEngine.playClick(); annotationStore.clearSlide(currentSlide); }}
+          onClearAll={() => { soundEngine.playClick(); setShowClearConfirm(true); }}
+          onExportAnnotatedPdf={() => void handleExportAnnotatedPdf()}
+          onExportProject={handleExportProject}
+          onImportProject={() => projectInputRef.current?.click()}
+          onOpenSettings={() => { soundEngine.playClick(); setShowSettingsModal(true); }}
+        />
+      )}
 
       {/* MAIN WORKSPACE BODY */}
       <div className="presentation-stage-wrapper">
@@ -737,68 +756,11 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* BOTTOM TOOL DOCK AND STATUS BAR (Normal mode only) */}
+      {/* BOTTOM STATUS AND TOOL BAR (Normal mode only) */}
       {viewMode === 'normal' && (
-        <div className="workspace-bottom-controls">
-          <HeaderToolbar
-            documentName={docInfo.name}
-            activeTool={activeTool}
-            penColor={penColor}
-            penWidth={penWidth}
-            highlighterColor={highlighterColor}
-            highlighterWidth={highlighterWidth}
-            laserColor={laserColor}
-            shapeType={shapeType}
-            shapeFill={shapeFill}
-            transitionType={effectiveTransitionType}
-            canUndo={annotationStore.canUndo()}
-            canRedo={annotationStore.canRedo()}
-            isSoundEnabled={isSoundEnabled}
-            onToggleSound={handleToggleSound}
-            onOpenFile={() => fileInputRef.current?.click()}
-            onStartPresentation={handleStartPresentation}
-            onOpenPresenterMode={() => {
-              soundEngine.playClick();
-              setViewMode('presenter');
-            }}
-            onSelectTool={handleSelectTool}
-            onPenColorChange={setPenColor}
-            onPenWidthChange={setPenWidth}
-            onHighlighterColorChange={setHighlighterColor}
-            onHighlighterWidthChange={setHighlighterWidth}
-            onLaserColorChange={setLaserColor}
-            onShapeTypeChange={setShapeType}
-            onShapeFillChange={setShapeFill}
-            onTransitionChange={(trans: TransitionType) => {
-              soundEngine.playClick();
-              setTransitionConfig((prev) => ({ ...prev, type: trans }));
-              setSlideTransitions((transitions) => ({ ...transitions, [currentSlide]: trans }));
-            }}
-            onUndo={() => {
-              soundEngine.playClick();
-              annotationStore.undo();
-            }}
-            onRedo={() => {
-              soundEngine.playClick();
-              annotationStore.redo();
-            }}
-            onClearSlide={() => {
-              soundEngine.playClick();
-              annotationStore.clearSlide(currentSlide);
-            }}
-            onClearAll={() => {
-              soundEngine.playClick();
-              setShowClearConfirm(true);
-            }}
-            onExportAnnotatedPdf={() => void handleExportAnnotatedPdf()}
-            onExportProject={handleExportProject}
-            onImportProject={() => projectInputRef.current?.click()}
-            onOpenSettings={() => {
-              soundEngine.playClick();
-              setShowSettingsModal(true);
-            }}
-          />
           <BottomStatusBar
+          documentName={docInfo.name}
+          tools={<ToolDock activeTool={activeTool} penColor={penColor} penWidth={penWidth} highlighterColor={highlighterColor} highlighterWidth={highlighterWidth} laserColor={laserColor} shapeType={shapeType} shapeFill={shapeFill} onSelectTool={handleSelectTool} onPenColorChange={setPenColor} onPenWidthChange={setPenWidth} onHighlighterColorChange={setHighlighterColor} onHighlighterWidthChange={setHighlighterWidth} onLaserColorChange={setLaserColor} onShapeTypeChange={setShapeType} onShapeFillChange={setShapeFill} />}
           currentSlide={currentSlide}
           totalSlides={docInfo.totalSlides}
           zoomFactor={zoomFactor}
@@ -823,7 +785,6 @@ export const App: React.FC = () => {
             setShowGoToModal(true);
           }}
           />
-        </div>
       )}
 
       {/* FLOATING TOOLBAR (Presentation mode only) */}

@@ -3,6 +3,8 @@
  * Synthesizes clean, pleasant UI and presentation audio cues on the fly
  * with zero external audio file dependencies.
  */
+import type { TransitionSound } from '../types/settings';
+
 export class SoundEngine {
   private static instance: SoundEngine | null = null;
   private ctx: AudioContext | null = null;
@@ -89,20 +91,29 @@ export class SoundEngine {
   /**
    * Slide transition sound (soft crisp slide turn / swoosh)
    */
-  public playSlideSwitch(): void {
-    if (!this.enabled) return;
+  public playSlideSwitch(style: TransitionSound = 'soft'): void {
+    if (!this.enabled || style === 'none') return;
     const ctx = this.initContext();
     if (!ctx) return;
+
+    if (style === 'click') {
+      this.playClick();
+      return;
+    }
+    if (style === 'chime') {
+      this.playBeep();
+      return;
+    }
 
     // Dual-component sound: low soft thud + gentle high whoosh
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(320, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + 0.08);
+    osc.type = style === 'paper' ? 'sawtooth' : 'triangle';
+    osc.frequency.setValueAtTime(style === 'paper' ? 520 : 320, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(style === 'paper' ? 130 : 180, ctx.currentTime + 0.08);
 
-    gain.gain.setValueAtTime(this.volume * 0.35, ctx.currentTime);
+    gain.gain.setValueAtTime(this.volume * (style === 'paper' ? 0.18 : 0.35), ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
 
     osc.connect(gain);

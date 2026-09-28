@@ -104,3 +104,15 @@ Build Tools 36.0.0, Platform Tools 37.0.1, NDK 28.2 및 Rust Android 대상 4종
 - Electron 소스·빌드 도구·112MB 배포물은 삭제하지 않고 `D:\App coding\_archive`로 이동
 - 최종 NSIS: `release\CrowShow-v1.0.0-Setup-x64.exe` (`3,593,699 bytes`)
 - SHA-256: `1a8362ec8c95e2ff6d0d8813bd80b32666002fa900dd7fe6968b152b41063ec1`
+
+# 2026-09-29 · CrowShow 1.0c UI revision
+
+- 시작 화면을 전체 플레이어 배경 + 소형 PDF 열기 패널 구조로 교체
+- Tauri WebView2의 네이티브 드롭 가로채기를 해제해 웹 PDF 드래그 앤 드롭 복구
+- 체험용 슬라이드 진입 UI 제거
+- 노란부리까마귀를 사실적인 투명 배경 이미지로 교체
+- 상단 명령 바와 하단 상태·도구 바로 3단 메뉴를 2단 구조로 재편
+- 전환음 선택지를 없음/부드러운 넘김/종이 넘김/짧은 클릭/차임으로 확대
+- 환경설정에서 중복 레이저 색상 및 잔상 옵션 제거, 가로형 무스크롤 레이아웃 적용
+- 사용자 표시 버전은 1.0c, 패키지 내부 SemVer는 1.0.2로 설정
+- GitHub에는 게시하지 않고 로컬 NSIS 설치 패키지만 생성

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "CrowShow",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "identifier": "lab.crowscience.crowshow",
   "build": {
     "frontendDist": "../dist",
@@ -19,7 +19,8 @@
         "minHeight": 680,
         "center": true,
         "resizable": true,
-        "fullscreen": false
+        "fullscreen": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

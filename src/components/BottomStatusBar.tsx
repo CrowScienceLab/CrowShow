@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 
 interface BottomStatusBarProps {
+  documentName: string;
+  tools: React.ReactNode;
   currentSlide: number;
   totalSlides: number;
   zoomFactor: number;
@@ -27,6 +29,8 @@ interface BottomStatusBarProps {
 }
 
 export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
+  documentName,
+  tools,
   currentSlide,
   totalSlides,
   zoomFactor,
@@ -80,6 +84,10 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
         </button>
       </div>
 
+      <div className="status-document-name" title={documentName}>
+        <span className="doc-icon">PDF</span><span>{documentName}</span>
+      </div>
+
       {/* Center: Presentation Timer */}
       <div className="status-section center">
         <div className="status-timer-box">
@@ -101,6 +109,8 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
           </button>
         </div>
       </div>
+
+      {tools}
 
       {/* Right: Zoom & Fullscreen */}
       <div className="status-section right">
