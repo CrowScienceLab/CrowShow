@@ -35,6 +35,9 @@
     "category": "Education",
     "shortDescription": "Offline PDF presentation player for classrooms",
     "longDescription": "CrowShow is an offline PDF presentation and annotation player for classrooms.",
+    "resources": {
+      "icons/desktop-shortcut.ico": "resources/desktop-shortcut.ico"
+    },
     "fileAssociations": [
       {
         "ext": ["pdf"],
@@ -54,7 +57,8 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "installerIcon": "icons/icon.ico"
+        "installerIcon": "icons/icon.ico",
+        "installerHooks": "windows/installer-hooks.nsh"
       }
     },
     "android": {
