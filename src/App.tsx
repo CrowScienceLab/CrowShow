@@ -127,6 +127,7 @@ export const App: React.FC = () => {
   const audienceWindowRef = useRef<Window | null>(null);
   const panDragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const lastWheelNavigationRef = useRef(0);
+  const pdfLoadRequestRef = useRef(0);
 
   // Container dimensions for responsive slide fitting
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -151,7 +152,7 @@ export const App: React.FC = () => {
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [viewMode, isSidebarOpen]);
+  }, [viewMode, isSidebarOpen, pdfDoc]);
 
   // Load PDF helper
   const loadPdfData = useCallback(async (
@@ -160,10 +161,12 @@ export const App: React.FC = () => {
     size?: number,
     saveToLibrary = true
   ) => {
+    const request = ++pdfLoadRequestRef.current;
     try {
       const sourceBytes = buffer instanceof Uint8Array ? buffer.slice() : new Uint8Array(buffer.slice(0));
       const loader = PdfLoader.getInstance();
       const info = await loader.loadFromBuffer(sourceBytes.slice(), fileName, size);
+      if (request !== pdfLoadRequestRef.current) return;
       const pdf = loader.getPdfDocument();
 
       if (!pdf) throw new Error('Failed to parse PDF');
@@ -174,6 +177,8 @@ export const App: React.FC = () => {
       setCurrentSlide(1);
       setZoomFactor(1);
       setPan({ x: 0, y: 0 });
+      setScreenCurtain('none');
+      setIsAutoPlaying(false);
       annotationStore.setDocument(info.id);
       try {
         setSpeakerNotes(JSON.parse(localStorage.getItem(`crowshow_notes_${info.id}`) || '{}'));
@@ -195,7 +200,8 @@ export const App: React.FC = () => {
           await savePdfDocument({ ...recent, bytes: sourceBytes.slice().buffer });
           setRecentFiles((curr) => {
             const updated = [recent, ...curr.filter((f) => f.id !== info.id)].slice(0, 8);
-            localStorage.setItem('crowshow_recent', JSON.stringify(updated));
+            try { localStorage.setItem('crowshow_recent', JSON.stringify(updated)); }
+            catch (error) { console.warn('Recent list storage warning:', error); }
             return updated;
           });
         } catch (storageError) {
@@ -204,6 +210,7 @@ export const App: React.FC = () => {
         }
       }
     } catch (err) {
+      if (request !== pdfLoadRequestRef.current) return;
       console.error('PDF Load Error:', err);
       alert('PDF 파일을 불러오는 중 오류가 발생했습니다.');
     }
@@ -238,12 +245,16 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     if (!docInfo) return;
-    localStorage.setItem(`crowshow_notes_${docInfo.id}`, JSON.stringify(speakerNotes));
+    try {
+      localStorage.setItem(`crowshow_notes_${docInfo.id}`, JSON.stringify(speakerNotes));
+    } catch (error) { console.warn('Speaker notes storage warning:', error); }
   }, [docInfo, speakerNotes]);
 
   useEffect(() => {
     if (!docInfo) return;
-    localStorage.setItem(`crowshow_transitions_${docInfo.id}`, JSON.stringify(slideTransitions));
+    try {
+      localStorage.setItem(`crowshow_transitions_${docInfo.id}`, JSON.stringify(slideTransitions));
+    } catch (error) { console.warn('Transition storage warning:', error); }
   }, [docInfo, slideTransitions]);
 
   useEffect(() => {
@@ -479,8 +490,8 @@ export const App: React.FC = () => {
 
   const handleOpenFile = (file: File) => {
     soundEngine.playClick();
-    file.arrayBuffer().then((buf) => {
-      loadPdfData(buf, file.name, file.size);
+    void file.arrayBuffer().then((buf) => loadPdfData(buf, file.name, file.size)).catch(() => {
+      alert('PDF 파일을 읽을 수 없습니다. 파일 위치와 접근 권한을 확인해 주세요.');
     });
   };
 
@@ -561,7 +572,9 @@ export const App: React.FC = () => {
         return;
       }
       soundEngine.playClick();
-      file.arrayBuffer().then((buffer) => loadPdfData(buffer, file.name, file.size));
+      void file.arrayBuffer().then((buffer) => loadPdfData(buffer, file.name, file.size)).catch(() => {
+        alert('PDF 파일을 읽을 수 없습니다.');
+      });
     };
     window.addEventListener('dragover', allowDrop);
     window.addEventListener('drop', openDroppedPdf);
@@ -587,6 +600,7 @@ export const App: React.FC = () => {
           style={{ display: 'none' }}
           onChange={(e) => {
             const f = e.target.files?.[0];
+            e.target.value = '';
             if (f) handleOpenFile(f);
           }}
         />
@@ -629,6 +643,7 @@ export const App: React.FC = () => {
         style={{ display: 'none' }}
         onChange={(e) => {
           const f = e.target.files?.[0];
+          e.target.value = '';
           if (f) handleOpenFile(f);
         }}
       />
@@ -723,6 +738,7 @@ export const App: React.FC = () => {
           onDoubleClick={() => setPan({ x: 0, y: 0 })}
         >
           <TransitionContainer
+            key={docInfo.id}
             pdfDoc={pdfDoc}
             currentSlide={currentSlide}
             slideAspect={currentSlideAspect}

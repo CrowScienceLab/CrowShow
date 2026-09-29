@@ -88,7 +88,7 @@ export class PdfRenderer {
     }
 
     // Check if we have pre-rendered cached version from a separate offscreen canvas
-    const cached = this.pdfCache.get(pageNumber, renderScale);
+    const cached = this.pdfCache.get(pdf, pageNumber, renderScale);
     if (cached && cached.canvas !== canvas && cached.width > 0 && cached.height > 0) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -117,7 +117,7 @@ export class PdfRenderer {
       const cloneCtx = clone.getContext('2d');
       if (cloneCtx) {
         cloneCtx.drawImage(canvas, 0, 0);
-        this.pdfCache.set(pageNumber, renderScale, clone, canvas.width, canvas.height);
+        this.pdfCache.set(pdf, pageNumber, renderScale, clone, canvas.width, canvas.height);
       }
       return { width: fitWidth, height: fitHeight, scale: baseScale };
     } catch (err: unknown) {

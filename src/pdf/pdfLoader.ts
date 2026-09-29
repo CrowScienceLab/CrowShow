@@ -10,6 +10,8 @@ if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
 export class PdfLoader {
   private static instance: PdfLoader | null = null;
   private currentPdf: pdfjsLib.PDFDocumentProxy | null = null;
+  private loadGeneration = 0;
+  private currentTask: pdfjsLib.PDFDocumentLoadingTask | null = null;
   private documentInfo: PdfDocumentInfo | null = null;
 
   public static getInstance(): PdfLoader {
@@ -27,41 +29,47 @@ export class PdfLoader {
     fileName: string,
     fileSize?: number
   ): Promise<PdfDocumentInfo> {
-    if (this.currentPdf) {
-      await this.destroy();
-    }
+    const generation = ++this.loadGeneration;
 
     const sourceBytes = data instanceof Uint8Array ? data : new Uint8Array(data);
     const loadingTask = pdfjsLib.getDocument({ data: sourceBytes.slice() });
 
     const pdf = await loadingTask.promise;
-    this.currentPdf = pdf;
+    try {
+      const totalSlides = pdf.numPages;
+      const pageAspectRatios: number[] = [];
 
-    const totalSlides = pdf.numPages;
-    const pageAspectRatios: number[] = [];
+      // Pre-calculate page aspect ratios for seamless layout
+      for (let i = 1; i <= totalSlides; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.0 });
+        pageAspectRatios.push(viewport.width / viewport.height);
+      }
 
-    // Pre-calculate page aspect ratios for seamless layout
-    for (let i = 1; i <= totalSlides; i++) {
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 1.0 });
-      pageAspectRatios.push(viewport.width / viewport.height);
+      const digest = await crypto.subtle.digest('SHA-256', sourceBytes.slice().buffer);
+      const fingerprint = Array.from(new Uint8Array(digest).slice(0, 12))
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
+      const docId = `pdf_${fingerprint}`;
+      if (generation !== this.loadGeneration) throw new Error("PDF load superseded");
+      const previousTask = this.currentTask;
+      this.currentTask = loadingTask;
+      this.currentPdf = pdf;
+      if (previousTask) void previousTask.destroy().catch(console.warn);
+      this.documentInfo = {
+        id: docId,
+        name: fileName,
+        totalSlides,
+        fileSize: fileSize || (data instanceof ArrayBuffer ? data.byteLength : data.length),
+        pageAspectRatios,
+        loadedAt: new Date(),
+      };
+
+      return this.documentInfo;
+    } catch (error) {
+      await loadingTask.destroy();
+      throw error;
     }
-
-    const digest = await crypto.subtle.digest('SHA-256', sourceBytes.slice().buffer);
-    const fingerprint = Array.from(new Uint8Array(digest).slice(0, 12))
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
-    const docId = `pdf_${fingerprint}`;
-    this.documentInfo = {
-      id: docId,
-      name: fileName,
-      totalSlides,
-      fileSize: fileSize || (data instanceof ArrayBuffer ? data.byteLength : data.length),
-      pageAspectRatios,
-      loadedAt: new Date(),
-    };
-
-    return this.documentInfo;
   }
 
   /**
@@ -103,14 +111,18 @@ export class PdfLoader {
    * Cleanup resources
    */
   public async destroy(): Promise<void> {
-    if (this.currentPdf) {
+    ++this.loadGeneration;
+    const task = this.currentTask;
+    this.currentTask = null;
+    this.currentPdf = null;
+    this.documentInfo = null;
+    if (task) {
       try {
-        await this.currentPdf.cleanup();
+        await task.destroy();
       } catch (err) {
         console.warn('PDF cleanup warning:', err);
       }
-      this.currentPdf = null;
-      this.documentInfo = null;
+
     }
   }
 }

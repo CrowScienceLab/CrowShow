@@ -26,7 +26,6 @@ const ThumbnailItem: React.FC<ThumbnailItemProps> = ({
   onSelect,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const renderedRef = useRef(false);
   const itemRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -36,16 +35,12 @@ const ThumbnailItem: React.FC<ThumbnailItemProps> = ({
   }, [isActive]);
 
   useEffect(() => {
-    if (renderedRef.current) return;
     const canvas = canvasRef.current;
     if (!canvas || !pdfDoc) return;
 
     const renderer = new PdfRenderer();
     renderer
       .renderThumbnail(pdfDoc, pageNumber, canvas, 180)
-      .then(() => {
-        renderedRef.current = true;
-      })
       .catch((err) => {
         console.warn(`Thumbnail render page ${pageNumber} error:`, err);
       });

@@ -150,7 +150,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div className="settings-row settings-about-row">
             <div className="settings-label-group" style={{ width: '100%' }}>
-              <span className="settings-label">CrowShow v1.0e · Crow Science Lab</span>
+              <span className="settings-label">CrowShow v1.0f · Crow Science Lab</span>
               <span className="settings-desc">
                 오프라인 PDF 수업을 위한 프레젠테이션 플레이어
               </span>

@@ -7,7 +7,7 @@
 ## 1. 개발 환경 요구사항
 
 - **운영체제**: Windows 11 (macOS 및 Linux 웹 브라우저 호환)
-- **Node.js**: v18.0.0 이상 (v20+ 권장)
+- **Node.js**: v22.12 이상 권장
 - **Rust**: stable MSVC 툴체인
 - **Windows 구성요소**: Visual Studio Build Tools 2022, Windows SDK, WebView2 Runtime
 - **패키지 매니저**: npm (또는 pnpm / yarn)
@@ -87,11 +87,11 @@ NSIS 설치 파일은 `src-tauri\target\release\bundle\nsis`에 생성됩니다.
 
 ---
 
-## 5. 알려진 사항 및 향후 작업 (Codex 연계)
+## 5. 현재 구현 상태와 검증
 
-1. **자동 슬라이드 쇼 (Auto Play / Loop)**:
-   - 발표 연습을 위한 n초 주기 자동 넘김 타이머 기능 추가 가능.
-2. **필기 포함 PDF 내보내기 (Export Annotated PDF)**:
-   - `pdf-lib` 등을 결합하여 원본 PDF 페이지 위에 Annotation 캔버스 이미지를 오버레이하여 새로운 PDF로 다운로드하는 기능 확장 준비.
-3. **듀얼 모니터 완벽 분리 창 (Multi-Window Presentation)**:
-   - 현재 Presenter Mode가 동일 창 내 뷰 전환으로 지원되고 있으나, 브라우저의 `window.open()` 또는 Desktop Window API를 연동하여 청중 창과 발표자 창을 물리적 듀얼 모니터로 분리하는 기능 확장 가능.
+자동 재생, 필기 포함 PDF 내보내기, 청중 분리 창과 Windows NSIS 패키징은 구현되어 있습니다.
+청중 창은 팝업 허용 및 실행 환경에 따라 별도 확인이 필요합니다.
+
+- 표시 버전: 1.0f (내부 1.0.5)
+- 회귀 검사: `node scripts/regression.cjs`
+- 상세 변경 및 제한: `docs/maintenance/2026-09-29-v1.0f-review/REPORT.md`

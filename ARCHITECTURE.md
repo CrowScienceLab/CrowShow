@@ -81,7 +81,6 @@ src/
 │   ├── pdfLoader.ts       # PDF.js 워커 세팅, ArrayBuffer/File 로딩
 │   ├── pdfRenderer.ts     # 고해상도(DPR) 렌더링 및 썸네일 축소 렌더러
 │   ├── pdfCache.ts        # 주변 ±2 슬라이드 사전 렌더링 & LRU 캐시
-│   └── samplePdf.ts       # 즉각 체험을 위한 5-슬라이드 벡터 PDF 생성기
 ├── annotations/
 │   ├── strokeEngine.ts    # 베지어 곡선 보간 및 형광펜 multiply 블렌딩
 │   ├── eraserEngine.ts    # 선분 거리 기반 스마트 획 삭제 히트테스터
@@ -97,7 +96,7 @@ src/
 │   ├── presentationTimer.ts       # 시작/일시정지/초기화 경과 타이머
 │   └── presenterModeView.tsx      # 발표자 전용 듀얼 뷰 (청중화면 + 다음화면)
 ├── components/
-│   ├── StartScreen.tsx        # 시작 화면, 드래그앤드롭, 샘플 슬라이드 열기
+│   ├── StartScreen.tsx        # 시작 화면, 드래그앤드롭, 최근 파일 열기
 │   ├── HeaderToolbar.tsx      # 상단 도구 모음 (슬라이드쇼, 펜, 전환 효과)
 │   ├── SlideThumbnailList.tsx # 좌측 슬라이드 썸네일 탐색기
 │   ├── FloatingToolbar.tsx    # 전체화면용 자동 숨김 플로팅 컨트롤 바

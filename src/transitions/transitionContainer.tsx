@@ -174,16 +174,16 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
         pdfDoc,
         currentSlide,
         canvas,
-        containerWidth,
-        containerHeight,
-        zoomFactor
+        slideWidth,
+        slideHeight,
+        1
       )
       .catch((err) => {
         if (err?.name !== 'RenderingCancelledException') {
           console.warn('Primary slide render warning:', err);
         }
       });
-  }, [pdfDoc, currentSlide, containerWidth, containerHeight, zoomFactor]);
+  }, [pdfDoc, currentSlide, containerWidth, containerHeight, slideWidth, slideHeight]);
 
   // Render previous slide during transition
   useEffect(() => {
@@ -196,12 +196,12 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
         pdfDoc,
         transitionState.prevSlide,
         canvas,
-        containerWidth,
-        containerHeight,
-        zoomFactor
+        slideWidth,
+        slideHeight,
+        1
       )
       .catch(() => {});
-  }, [pdfDoc, transitionState, containerWidth, containerHeight, zoomFactor]);
+  }, [pdfDoc, transitionState, slideWidth, slideHeight]);
 
   return (
     <div

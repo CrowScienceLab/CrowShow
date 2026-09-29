@@ -77,5 +77,5 @@
 
 ## 3. 향후 확장 계획 (Planned)
 
-- [ ] **Windows Tauri 설치 패키지 (`.exe` / `.msi`)**
+- [x] **Windows Tauri NSIS 설치 패키지 (`.exe`)**
 - [ ] **Android 패키징** — Windows 앱 완료 이후 진행

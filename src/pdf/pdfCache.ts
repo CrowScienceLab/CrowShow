@@ -13,7 +13,9 @@ export class PdfCache {
   private static instance: PdfCache | null = null;
   private cache: Map<string, CacheEntry> = new Map();
   private maxEntries: number = 16;
-  private activeRenderTasks: Map<number, RenderTask> = new Map();
+  private activeRenderTasks: Map<string, RenderTask> = new Map();
+  private documentIds = new WeakMap<PDFDocumentProxy, number>();
+  private nextDocumentId = 0;
 
   public static getInstance(): PdfCache {
     if (!PdfCache.instance) {
@@ -22,15 +24,16 @@ export class PdfCache {
     return PdfCache.instance;
   }
 
-  private getCacheKey(pageNumber: number, scale: number): string {
-    return `${pageNumber}_${Math.round(scale * 100)}`;
+  private getCacheKey(pdf: PDFDocumentProxy, pageNumber: number, scale: number): string {
+    if (!this.documentIds.has(pdf)) this.documentIds.set(pdf, ++this.nextDocumentId);
+    return `${this.documentIds.get(pdf)}_${pageNumber}_${scale}`;
   }
 
   /**
    * Get cached canvas if available
    */
-  public get(pageNumber: number, scale: number): CacheEntry | undefined {
-    const key = this.getCacheKey(pageNumber, scale);
+  public get(pdf: PDFDocumentProxy, pageNumber: number, scale: number): CacheEntry | undefined {
+    const key = this.getCacheKey(pdf, pageNumber, scale);
     const entry = this.cache.get(key);
     if (entry) {
       entry.lastUsed = Date.now();
@@ -41,11 +44,11 @@ export class PdfCache {
   /**
    * Put rendered canvas in cache with LRU eviction
    */
-  public set(pageNumber: number, scale: number, canvas: HTMLCanvasElement, width: number, height: number): void {
-    if (this.cache.size >= this.maxEntries) {
+  public set(pdf: PDFDocumentProxy, pageNumber: number, scale: number, canvas: HTMLCanvasElement, width: number, height: number): void {
+    const key = this.getCacheKey(pdf, pageNumber, scale);
+    if (!this.cache.has(key) && this.cache.size >= this.maxEntries) {
       this.evictOldest();
     }
-    const key = this.getCacheKey(pageNumber, scale);
     this.cache.set(key, {
       pageNumber,
       canvas,
@@ -87,8 +90,8 @@ export class PdfCache {
 
     for (let p = start; p <= end; p++) {
       if (p === currentSlide) continue; // Current slide is handled directly
-      const key = this.getCacheKey(p, scale);
-      if (!this.cache.has(key) && !this.activeRenderTasks.has(p)) {
+      const key = this.getCacheKey(pdf, p, scale);
+      if (!this.cache.has(key) && !this.activeRenderTasks.has(key)) {
         this.renderOffscreen(pdf, p, scale).catch((err) => {
           // Ignore cancelled tasks
           if (err?.name !== 'RenderingCancelledException') {
@@ -126,29 +129,15 @@ export class PdfCache {
       canvas,
     });
 
-    this.activeRenderTasks.set(pageNumber, renderTask);
+    const key = this.getCacheKey(pdf, pageNumber, scale);
+    this.activeRenderTasks.set(key, renderTask);
 
     try {
       await renderTask.promise;
-      this.set(pageNumber, scale, canvas, canvas.width, canvas.height);
+      this.set(pdf, pageNumber, scale, canvas, canvas.width, canvas.height);
       return canvas;
     } finally {
-      this.activeRenderTasks.delete(pageNumber);
-    }
-  }
-
-  /**
-   * Cancel ongoing render task for a page
-   */
-  public cancelPageRender(pageNumber: number): void {
-    const task = this.activeRenderTasks.get(pageNumber);
-    if (task) {
-      try {
-        task.cancel();
-      } catch {
-        // Ignore cancellation error
-      }
-      this.activeRenderTasks.delete(pageNumber);
+      if (this.activeRenderTasks.get(key) === renderTask) this.activeRenderTasks.delete(key);
     }
   }
 
