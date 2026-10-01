@@ -1,0 +1,10 @@
+{
+  "status": "available",
+  "version": "1.1.0",
+  "assetName": "CrowShow-v1.1-Setup-x64.exe",
+  "assetUrl": "https://github.com/CrowScienceLab/CrowShow/releases/download/v1.1.0/CrowShow-v1.1-Setup-x64.exe",
+  "checksumUrl": "https://github.com/CrowScienceLab/CrowShow/releases/download/v1.1.0/SHA256SUMS.txt",
+  "releaseUrl": "https://github.com/CrowScienceLab/CrowShow/releases/tag/v1.1.0",
+  "error": null,
+  "note": "Captured from the initial legacy installed-app check before the installed application changed to 1.1.0."
+}

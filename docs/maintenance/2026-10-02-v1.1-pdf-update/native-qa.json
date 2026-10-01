@@ -1,0 +1,53 @@
+{
+  "url": "http://tauri.localhost/",
+  "firstPaintMs": 1105,
+  "resourceResults": [
+    {
+      "name": "cmaps/Adobe-Korea1-UCS2.bcmap",
+      "status": 200,
+      "bytes": 23293
+    },
+    {
+      "name": "standard_fonts/LiberationSans-Regular.ttf",
+      "status": 200,
+      "bytes": 139512
+    },
+    {
+      "name": "wasm/qcms_bg.wasm",
+      "status": 200,
+      "bytes": 96589
+    },
+    {
+      "name": "iccs/CGATS001Compat-v2-micro.icc",
+      "status": 200,
+      "bytes": 8464
+    }
+  ],
+  "sizes": [
+    {
+      "frame": [
+        598,
+        774
+      ],
+      "pdf": [
+        598,
+        773
+      ],
+      "annotation": null
+    },
+    {
+      "frame": [
+        598,
+        774
+      ],
+      "pdf": [
+        598,
+        773
+      ],
+      "annotation": null
+    }
+  ],
+  "warnings": [
+    "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+  ]
+}
