@@ -57,6 +57,7 @@ GitHub에는 v1.0.0과 v1.0.5(표시 1.0f)가 게시되어 있었습니다.
 | 초기 워커 전달량 | 131,761,690→262,144 bytes |
 | 최종 개발 UI 첫 표시 | 1,015ms; 첫 화면 부근 썸네일 6 / 103개 |
 | 최종 Windows WebView2 첫 표시 | 842ms; 한글 본문·표·지도 및 첫·마지막 페이지 이동 확인 |
+| 갱신된 설치 경로의 Windows 앱 재검증 | 1,105ms; 로컬 리소스·한글 및 첫·마지막 페이지 이동 확인 (`native-qa.json`) |
 | 패키징된 리소스 | CMap·TTF·WASM·ICC 모두 로컬 200 응답, 리소스 크기 확인 |
 | GitHub 최신 정식 릴리스 | v1.1.0, draft=false, prerelease=false, Latest 확인 |
 | 공개 다운로드 | 설치 파일·표준 체크섬 모두 다운로드 성공; 크기·SHA-256 및 GitHub asset digest 일치 |
