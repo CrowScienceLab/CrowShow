@@ -1,5 +1,9 @@
 # CrowShow 1.0
 
+이 폴더는 Windows PC판 전용 프로젝트입니다. Android 모바일판은
+`D:\App coding\CrowShow_m`에서 별도로 관리합니다. PC판 개발 경과는
+[PC_DEVELOPMENT_HISTORY.md](PC_DEVELOPMENT_HISTORY.md)에 정리되어 있습니다.
+
 PDF 수업 자료를 오프라인에서 프레젠테이션처럼 활용하는 `Crow Science Lab`의 전용 플레이어입니다.
 
 > **Gemini Notebook & AI 슬라이드를 위한 전용 프레젠테이션 플레이어**  
