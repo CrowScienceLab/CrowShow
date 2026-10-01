@@ -106,6 +106,8 @@ fn is_newer_version(latest: &str, current: &str) -> bool {
 fn github_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(format!("CrowShow/{}", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|error| error.to_string())
 }
@@ -144,7 +146,7 @@ async fn check_for_updates() -> Result<UpdateCheckResult, String> {
     if !is_newer_version(&version, env!("CARGO_PKG_VERSION")) {
         return Ok(UpdateCheckResult {
             status: "current".into(),
-            version: Some(version),
+            version: Some(env!("CARGO_PKG_VERSION").to_string()),
             asset_name: None,
             asset_url: None,
             checksum_url: None,
@@ -154,12 +156,21 @@ async fn check_for_updates() -> Result<UpdateCheckResult, String> {
     }
     let installer = release.assets.iter().find(|asset| {
         let lower = asset.name.to_ascii_lowercase();
-        lower.ends_with(".exe") && lower.contains("crowshow") && asset.size <= MAX_INSTALLER_BYTES
+        lower.starts_with("crowshow-v")
+            && lower.ends_with("-setup-x64.exe")
+            && asset.size > 0
+            && asset.size <= MAX_INSTALLER_BYTES
     });
     let checksums = release
         .assets
         .iter()
-        .find(|asset| asset.name.eq_ignore_ascii_case("SHA256SUMS.txt"));
+        .find(|asset| asset.name.eq_ignore_ascii_case("SHA256SUMS.txt"))
+        .or_else(|| {
+            release.assets.iter().find(|asset| {
+                let name = asset.name.to_ascii_lowercase();
+                name.starts_with("sha256sums-v") && name.ends_with(".txt")
+            })
+        });
     match (installer, checksums) {
         (Some(installer), Some(checksums)) => Ok(UpdateCheckResult {
             status: "available".into(),
@@ -188,6 +199,21 @@ fn validate_release_url(url: &str) -> bool {
     ))
 }
 
+fn expected_checksum(checksums: &str, asset_name: &str) -> Result<String, String> {
+    checksums
+        .lines()
+        .find_map(|line| {
+            let mut parts = line.split_whitespace();
+            let hash = parts.next()?;
+            let name = parts.next()?.trim_start_matches('*');
+            (name.eq_ignore_ascii_case(asset_name)
+                && hash.len() == 64
+                && hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
+            .then(|| hash.to_ascii_lowercase())
+        })
+        .ok_or_else(|| "체크섬 파일에서 설치 파일의 유효한 SHA-256을 찾을 수 없습니다.".into())
+}
+
 #[tauri::command]
 async fn download_and_install_update(
     app: tauri::AppHandle,
@@ -198,7 +224,16 @@ async fn download_and_install_update(
 ) -> Result<(), String> {
     if !validate_release_url(&asset_url)
         || !validate_release_url(&checksum_url)
-        || !asset_name.to_ascii_lowercase().ends_with(".exe")
+        || !asset_name.to_ascii_lowercase().starts_with("crowshow-v")
+        || !asset_name.to_ascii_lowercase().ends_with("-setup-x64.exe")
+        || asset_name.contains(['/', '\\'])
+        || version.is_empty()
+        || !version
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || byte == b'.')
+        || asset_url.rsplit('/').next() != Some(asset_name.as_str())
+        || asset_url.rsplit_once('/').map(|(base, _)| base)
+            != checksum_url.rsplit_once('/').map(|(base, _)| base)
     {
         return Err("공식 CrowShow 릴리스 주소가 아닙니다.".into());
     }
@@ -226,16 +261,7 @@ async fn download_and_install_update(
         .text()
         .await
         .map_err(|error| error.to_string())?;
-    let expected = checksums
-        .lines()
-        .find_map(|line| {
-            let mut parts = line.split_whitespace();
-            let hash = parts.next()?;
-            let name = parts.next()?.trim_start_matches('*');
-            name.eq_ignore_ascii_case(&asset_name)
-                .then(|| hash.to_ascii_lowercase())
-        })
-        .ok_or("SHA256SUMS.txt에서 설치 파일 해시를 찾을 수 없습니다.")?;
+    let expected = expected_checksum(&checksums, &asset_name)?;
     let actual = format!("{:x}", Sha256::digest(&installer));
     if actual != expected {
         return Err("설치 파일 SHA-256 검증에 실패했습니다.".into());
@@ -249,6 +275,37 @@ async fn download_and_install_update(
         .map_err(|error| error.to_string())?;
     app.exit(0);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn update_versions_and_checksums() {
+        assert!(is_newer_version("v1.1.0", "1.0.5"));
+        assert!(is_newer_version("v1.0.5", "1.0.0"));
+        assert!(!is_newer_version("v1.1", "1.1.0"));
+        assert!(!is_newer_version("v1.0.5", "1.1.0"));
+        let hash = "a".repeat(64);
+        let name = "CrowShow-v1.1-Setup-x64.exe";
+        assert_eq!(
+            expected_checksum(&format!("{hash}  {name}\r\n"), name).unwrap(),
+            hash
+        );
+        assert_eq!(
+            expected_checksum(&format!("{hash} *{name}\n"), name).unwrap(),
+            hash
+        );
+        assert!(expected_checksum(&format!("{hash} wrong.exe"), name).is_err());
+        assert!(expected_checksum(&format!("invalid {name}"), name).is_err());
+        assert!(validate_release_url(
+            "https://github.com/CrowScienceLab/CrowShow/releases/download/v1.1.0/SHA256SUMS.txt"
+        ));
+        assert!(!validate_release_url(
+            "https://github.com/Other/CrowShow/releases/download/v1.1.0/SHA256SUMS.txt"
+        ));
+    }
 }
 
 #[tauri::command]

@@ -62,6 +62,19 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
   const secondaryCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const pdfRendererRef = useRef(new PdfRenderer());
   const transitionEngine = TransitionEngine.getInstance();
+  const [pageSize, setPageSize] = useState<{ pdf: PDFDocumentProxy; page: number; aspect: number } | null>(null);
+  const resolvedAspect = pageSize?.pdf === pdfDoc && pageSize.page === currentSlide
+    ? pageSize.aspect : slideAspect;
+
+  useEffect(() => {
+    let cancelled = false;
+    void pdfDoc.getPage(currentSlide).then((page) => {
+      if (cancelled) return;
+      const viewport = page.getViewport({ scale: 1 });
+      setPageSize({ pdf: pdfDoc, page: currentSlide, aspect: viewport.width / viewport.height });
+    }).catch((error) => { if (!cancelled) console.warn('PDF page size warning:', error); });
+    return () => { cancelled = true; };
+  }, [pdfDoc, currentSlide]);
 
   // Transition state
   const prevSlideRef = useRef<number>(currentSlide);
@@ -102,7 +115,7 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
     const availW = Math.max(100, containerWidth - padding);
     const availH = Math.max(100, containerHeight - padding);
 
-    const aspect = slideAspect > 0 ? slideAspect : 16 / 9;
+    const aspect = resolvedAspect > 0 ? resolvedAspect : 16 / 9;
     let w = availW;
     let h = availW / aspect;
 
@@ -115,7 +128,7 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
     h = Math.floor(h * zoomFactor);
 
     return { slideWidth: w, slideHeight: h };
-  }, [containerWidth, containerHeight, slideAspect, zoomFactor]);
+  }, [containerWidth, containerHeight, resolvedAspect, zoomFactor]);
 
   // Handle slide transitions
   useEffect(() => {

@@ -38,12 +38,21 @@ const ThumbnailItem: React.FC<ThumbnailItemProps> = ({
     const canvas = canvasRef.current;
     if (!canvas || !pdfDoc) return;
 
-    const renderer = new PdfRenderer();
-    renderer
-      .renderThumbnail(pdfDoc, pageNumber, canvas, 180)
-      .catch((err) => {
-        console.warn(`Thumbnail render page ${pageNumber} error:`, err);
-      });
+    const item = itemRef.current;
+    if (!item) return;
+    let started = false;
+    const observer = new IntersectionObserver((entries) => {
+      if (started || !entries.some((entry) => entry.isIntersecting)) return;
+      started = true;
+      observer.disconnect();
+      new PdfRenderer().renderThumbnail(pdfDoc, pageNumber, canvas, 180)
+        .catch((err) => console.warn(`Thumbnail render page ${pageNumber} error:`, err));
+    }, { root: item.closest('.thumbnail-scroll-area'), rootMargin: '200px' });
+    observer.observe(item);
+    return () => {
+      observer.disconnect();
+      PdfRenderer.cancel(canvas);
+    };
   }, [pdfDoc, pageNumber]);
 
   return (

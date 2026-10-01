@@ -38,6 +38,7 @@ export async function onDesktopOpenPdf(
 
 export async function checkForDesktopUpdates(manual = true): Promise<void> {
   if (isTauri()) {
+    let installing = false;
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const update = await invoke<UpdateCheckResult>('check_for_updates');
@@ -51,6 +52,7 @@ export async function checkForDesktopUpdates(manual = true): Promise<void> {
       }
       if (update.status !== 'available') throw new Error(update.error || '업데이트 정보를 확인할 수 없습니다.');
       if (!confirm(`CrowShow v${update.version} 업데이트를 다운로드하고 설치하시겠습니까?`)) return;
+      installing = true;
       await invoke('download_and_install_update', {
         version: update.version,
         assetName: update.assetName,
@@ -59,7 +61,7 @@ export async function checkForDesktopUpdates(manual = true): Promise<void> {
       });
     } catch (error) {
       console.error(error);
-      if (manual) alert(`업데이트 확인에 실패했습니다.\n${String(error)}`);
+      if (manual || installing) alert(`업데이트 ${installing ? '다운로드·설치' : '확인'}에 실패했습니다.\n${String(error)}\n공식 릴리스: https://github.com/CrowScienceLab/CrowShow/releases/latest`);
     }
     return;
   }

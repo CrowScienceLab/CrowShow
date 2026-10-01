@@ -163,14 +163,15 @@ export const App: React.FC = () => {
   ) => {
     const request = ++pdfLoadRequestRef.current;
     try {
-      const sourceBytes = buffer instanceof Uint8Array ? buffer.slice() : new Uint8Array(buffer.slice(0));
+      const sourceBytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
       const loader = PdfLoader.getInstance();
-      const info = await loader.loadFromBuffer(sourceBytes.slice(), fileName, size);
+      const info = await loader.loadFromBuffer(sourceBytes, fileName, size);
       if (request !== pdfLoadRequestRef.current) return;
       const pdf = loader.getPdfDocument();
 
       if (!pdf) throw new Error('Failed to parse PDF');
 
+      pdfCache.clear();
       setPdfDoc(pdf);
       setDocInfo(info);
       setPdfBytes(sourceBytes);
@@ -197,7 +198,9 @@ export const App: React.FC = () => {
           fileSize: sourceBytes.byteLength,
         };
         try {
-          await savePdfDocument({ ...recent, bytes: sourceBytes.slice().buffer });
+          const storedBytes = sourceBytes.byteOffset === 0 && sourceBytes.byteLength === sourceBytes.buffer.byteLength
+            ? sourceBytes.buffer as ArrayBuffer : sourceBytes.slice().buffer;
+          await savePdfDocument({ ...recent, bytes: storedBytes });
           setRecentFiles((curr) => {
             const updated = [recent, ...curr.filter((f) => f.id !== info.id)].slice(0, 8);
             try { localStorage.setItem('crowshow_recent', JSON.stringify(updated)); }
@@ -214,7 +217,7 @@ export const App: React.FC = () => {
       console.error('PDF Load Error:', err);
       alert('PDF 파일을 불러오는 중 오류가 발생했습니다.');
     }
-  }, [annotationStore]);
+  }, [annotationStore, pdfCache]);
 
   // Windows desktop integration: open PDFs passed by file association or a
   // second Explorer launch. The bridge is absent in the normal browser build.

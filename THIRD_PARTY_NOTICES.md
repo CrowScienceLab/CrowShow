@@ -1,5 +1,16 @@
 # Third-party notices
 
+## Mozilla PDF.js and bundled PDF resources
+
+CrowShow uses `pdfjs-dist` (Apache License 2.0). Its CMaps, standard fonts, WASM
+decoders, and ICC profiles are copied from the installed package into `pdfjs/`
+at build time for offline PDF rendering. The package LICENSE and each resource
+directory's bundled license files are included with these resources.
+
+- Project: https://github.com/mozilla/pdf.js
+- Package license: installed `pdfjs-dist/LICENSE`, distributed as `pdfjs/LICENSE`
+- Resource license notices: the corresponding `pdfjs/standard_fonts`, `pdfjs/wasm`, and `pdfjs/iccs` directories
+
 ## Google Material Icons — `touch_app`
 
 CrowShow의 검지손가락 도형은 Google Material Icons의 `touch_app` SVG 경로를

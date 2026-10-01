@@ -1,6 +1,6 @@
 # Windows 설치 보안 안내
 
-CrowShow 1.0 설치 파일은 초기 무료 배포판으로 코드 서명 인증서가 없습니다. 따라서 Windows에서
+CrowShow 1.1 설치 파일은 무료 배포판으로 코드 서명 인증서가 없습니다. 따라서 Windows에서
 Microsoft Defender SmartScreen의 `Windows의 PC 보호` 또는 Smart App Control 경고가 나타날 수
 있습니다.
 
@@ -13,7 +13,7 @@ Microsoft Defender SmartScreen의 `Windows의 PC 보호` 또는 Smart App Contro
 ## PowerShell에서 SHA-256 확인
 
 ```powershell
-Get-FileHash .\CrowShow-v1.0.0-Setup-x64.exe -Algorithm SHA256
+Get-FileHash .\CrowShow-v1.1-Setup-x64.exe -Algorithm SHA256
 ```
 
 출력값이 같은 릴리스의 `SHA256SUMS.txt`와 완전히 일치할 때만 공식 파일로 판단할 수 있습니다.

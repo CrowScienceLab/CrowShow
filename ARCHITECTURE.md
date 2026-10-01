@@ -11,7 +11,7 @@
     - 브라우저 표준 Web API(Fullscreen API, Pointer Events, File System API, LocalStorage/IndexedDB, Web Worker)만을 사용하여 OS 및 브라우저 어디서나 즉시 실행 가능.
     - Windows 앱은 `src-tauri`의 Rust 백엔드와 운영체제 WebView2를 사용합니다.
     - PDF 파일 연결, 단일 인스턴스 및 SHA-256 검증 업데이트는 Tauri 명령으로 분리했습니다.
-    - 같은 React 코어는 향후 Windows 완료본을 기준으로 Android Tauri 프로젝트에 재사용합니다.
+    - Android 프로젝트는 `D:\App coding\CrowShow_m`으로 분리해 관리합니다.
 
 ### B. PDF 렌더링 엔진: Mozilla PDF.js (`pdfjs-dist`)
 - 브라우저 및 Node 생태계에서 가장 검증된 순수 웹 기반 PDF 파싱/렌더링 라이브러리.
@@ -60,7 +60,7 @@
 └────────────────────────────────────────────────────────┘
 ```
 
-1. **PDF Render Layer**: 원본 문서를 건드리지 않고, 비동기 백그라운드에서 오프스크린 캔버스로 고품질 래스터화합니다.
+1. **PDF Render Layer**: 원본 문서를 건드리지 않고, 큰 PDF를 256KB 구간 단위로 워커에 전달합니다. 첫 페이지 크기만 초기 계산하고 다른 페이지는 이동할 때 계산합니다. 한글 CMap·표준 글꼴·WASM·ICC는 앱에 포함합니다.
 2. **Slide Display Layer**: 컨테이너의 크기에 맞춰 슬라이드의 가로/세로 비율을 유지하며 중앙 배치하고 줌/팬을 처리합니다.
 3. **Annotation Layer**: 투명 캔버스 위에서 사용자의 펜/형광펜/지우개 입력을 받아 정규화 벡터 좌표로 관리합니다.
 4. **Presentation Effect Layer**: 발표 도구(레이저 잔상, 스포트라이트 어두운 오버레이 + 원형 컷아웃, 블랙/화이트 커튼)를 렌더링합니다.
@@ -98,7 +98,7 @@ src/
 ├── components/
 │   ├── StartScreen.tsx        # 시작 화면, 드래그앤드롭, 최근 파일 열기
 │   ├── HeaderToolbar.tsx      # 상단 도구 모음 (슬라이드쇼, 펜, 전환 효과)
-│   ├── SlideThumbnailList.tsx # 좌측 슬라이드 썸네일 탐색기
+│   ├── SlideThumbnailList.tsx # IntersectionObserver 기반 화면 주변 썸네일 생성
 │   ├── FloatingToolbar.tsx    # 전체화면용 자동 숨김 플로팅 컨트롤 바
 │   ├── BottomStatusBar.tsx    # 하단 내비게이션, 타이머, 줌 컨트롤
 │   ├── ColorPickerPopover.tsx # 색상 팔레트 및 선 굵기 조절 팝오버

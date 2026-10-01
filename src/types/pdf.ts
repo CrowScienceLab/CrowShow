@@ -3,7 +3,7 @@ export interface PdfDocumentInfo {
   name: string;
   totalSlides: number;
   fileSize?: number;
-  pageAspectRatios: number[]; // width / height for each slide
+  pageAspectRatios: number[]; // first-page ratio; other page sizes are resolved lazily by the display
   loadedAt: Date;
 }
 

@@ -8,14 +8,14 @@ PC 프로젝트: `D:\App coding\CrowShow`
 
 ## 현재 PC판 기준
 
-- 사용자 표시 버전: `1.0f`
-- 내부 SemVer: `1.0.5`
+- 사용자 표시 버전: `1.1`
+- 내부 SemVer: `1.1.0`
 - 런타임: Tauri 2 + Windows WebView2
 - 프런트엔드: React 19 + TypeScript + Vite
 - 배포 형식: Windows x64 NSIS 설치 프로그램
-- 최종 설치 파일: `release\CrowShow-v1.0f-Setup-x64.exe`
-- 최종 SHA-256: `080c6750a44a91e36dae9283adfd34b4027c2fe307b2db6a36f7656d184be30d`
-- PC판 기준 Git 커밋: `f8d616a`
+- 최종 설치 파일: `release\CrowShow-v1.1-Setup-x64.exe`
+- 최종 SHA-256: `79a17dd3454ccfab2cdfc589cf1f6f163249084f7941db413b699285ee65922b`
+- PC판 기준 Git 태그: `v1.1.0` (기존 1.0f 기준 커밋: `f8d616a`)
 
 ## 개발 경과
 
@@ -65,7 +65,19 @@ PC 프로젝트: `D:\App coding\CrowShow`
 - 사용하지 않는 체험 PDF 코드를 아카이브로 이동했습니다.
 - 제공된 이미지를 바탕화면 바로가기 전용 ICO로 적용했습니다.
 
-## 최종 검증
+### 1.1 업데이트 및 PDF 로딩·한글 표시 개선
+
+- 기존 1.0f 릴리스의 체크섬 이름 불일치를 확인하고 `SHA256SUMS.txt`를 추가했습니다.
+- 버전명 체크섬도 지원하고 업데이트 동의 후 다운로드·설치 실패를 표시합니다.
+- 큰 PDF는 256KB 구간 단위로 워커에 전달하고 첫 페이지 크기만 초기 계산합니다.
+- 보이는 썸네일과 주변 항목만 렌더링하고 주변 페이지 사전 렌더링을 순차 처리합니다.
+- CMap·표준 글꼴·WASM·ICC를 로컬 포함해 제공된 국문 PDF의 한글 누락을 해결했습니다.
+- 기존 SHA-256 문서 ID를 유지해 필기·메모 호환성을 보존했습니다.
+- `VERSION_HISTORY.md`에 버전별 기능과 실제 GitHub 배포 여부를 정리했습니다.
+- 132MB·103페이지 문서의 Windows WebView2 첫 표시 측정값은 약 0.84초입니다.
+- 상세 검증: `docs/maintenance/2026-10-02-v1.1-pdf-update/REPORT.md`
+
+## 1.0f 완료 당시 검증
 
 - TypeScript/Vite 프로덕션 빌드 통과
 - oxlint 통과

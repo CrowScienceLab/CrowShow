@@ -21,7 +21,7 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({ transitionType, tr
   }, []);
   return (
     <header className="fluent-command-bar" aria-label="CrowShow 명령 메뉴">
-      <div className="command-brand" title="Crow Science Lab"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.0f</small></div>
+      <div className="command-brand" title="Crow Science Lab"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.1</small></div>
       <button className="command-button" onClick={onOpenFile} title="PDF 열기"><FolderOpen size={17} /><span>열기</span></button>
       <button className="command-button primary" onClick={onStartPresentation} title="슬라이드쇼 (F5)"><Play size={16} fill="currentColor" /><span>슬라이드쇼</span></button>
       <button className="command-button" onClick={onOpenPresenterMode} title="발표자 보기"><MonitorPlay size={17} /><span>발표자</span></button>

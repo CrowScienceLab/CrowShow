@@ -16,6 +16,8 @@ export class PdfCache {
   private activeRenderTasks: Map<string, RenderTask> = new Map();
   private documentIds = new WeakMap<PDFDocumentProxy, number>();
   private nextDocumentId = 0;
+  private generation = 0;
+  private preloadGeneration = 0;
 
   public static getInstance(): PdfCache {
     if (!PdfCache.instance) {
@@ -84,15 +86,17 @@ export class PdfCache {
     distance: number = 2,
     scale: number = 1.5
   ): Promise<void> {
+    const preloadGeneration = ++this.preloadGeneration;
     const totalPages = pdf.numPages;
     const start = Math.max(1, currentSlide - distance);
     const end = Math.min(totalPages, currentSlide + distance);
 
     for (let p = start; p <= end; p++) {
+      if (preloadGeneration !== this.preloadGeneration) return;
       if (p === currentSlide) continue; // Current slide is handled directly
       const key = this.getCacheKey(pdf, p, scale);
       if (!this.cache.has(key) && !this.activeRenderTasks.has(key)) {
-        this.renderOffscreen(pdf, p, scale).catch((err) => {
+        await this.renderOffscreen(pdf, p, scale).catch((err) => {
           // Ignore cancelled tasks
           if (err?.name !== 'RenderingCancelledException') {
             console.warn(`Preload slide ${p} warning:`, err);
@@ -110,7 +114,13 @@ export class PdfCache {
     pageNumber: number,
     scale: number
   ): Promise<HTMLCanvasElement> {
+    const generation = this.generation;
     const page = await pdf.getPage(pageNumber);
+    if (generation !== this.generation) {
+      const error = new Error('PDF cache cleared');
+      error.name = 'RenderingCancelledException';
+      throw error;
+    }
     const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement('canvas');
@@ -134,7 +144,9 @@ export class PdfCache {
 
     try {
       await renderTask.promise;
-      this.set(pdf, pageNumber, scale, canvas, canvas.width, canvas.height);
+      if (generation === this.generation) {
+        this.set(pdf, pageNumber, scale, canvas, canvas.width, canvas.height);
+      }
       return canvas;
     } finally {
       if (this.activeRenderTasks.get(key) === renderTask) this.activeRenderTasks.delete(key);
@@ -145,6 +157,8 @@ export class PdfCache {
    * Clear all cache
    */
   public clear(): void {
+    ++this.generation;
+    ++this.preloadGeneration;
     for (const task of this.activeRenderTasks.values()) {
       try {
         task.cancel();

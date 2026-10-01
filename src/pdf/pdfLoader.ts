@@ -2,6 +2,22 @@ import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import type { PdfDocumentInfo } from '../types/pdf';
 
+const RANGE_CHUNK_SIZE = 256 * 1024;
+
+/** Feed the worker requested chunks instead of transferring an entire large PDF. */
+class BufferRangeTransport extends pdfjsLib.PDFDataRangeTransport {
+  private readonly bytes: Uint8Array;
+  constructor(bytes: Uint8Array) {
+    super(bytes.byteLength, bytes.slice(0, Math.min(RANGE_CHUNK_SIZE, bytes.byteLength)), true);
+    this.bytes = bytes;
+  }
+
+  override requestDataRange(begin: number, end: number): void {
+    // Deliver asynchronously: the worker must have registered its range reader first.
+    queueMicrotask(() => this.onDataRange(begin, this.bytes.slice(begin, end)));
+  }
+}
+
 // Initialize PDF.js worker
 if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -32,21 +48,31 @@ export class PdfLoader {
     const generation = ++this.loadGeneration;
 
     const sourceBytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    const loadingTask = pdfjsLib.getDocument({ data: sourceBytes.slice() });
+    const resourceBase = new URL('./pdfjs/', document.baseURI).href;
+    const loadingTask = pdfjsLib.getDocument({
+      ...(sourceBytes.byteLength > RANGE_CHUNK_SIZE
+        ? { range: new BufferRangeTransport(sourceBytes), rangeChunkSize: RANGE_CHUNK_SIZE,
+            disableAutoFetch: true, disableStream: true }
+        : { data: sourceBytes.slice() }),
+      cMapUrl: `${resourceBase}cmaps/`,
+      cMapPacked: true,
+      standardFontDataUrl: `${resourceBase}standard_fonts/`,
+      wasmUrl: `${resourceBase}wasm/`,
+      iccUrl: `${resourceBase}iccs/`,
+      useSystemFonts: true,
+    });
 
-    const pdf = await loadingTask.promise;
     try {
+      const pdf = await loadingTask.promise;
       const totalSlides = pdf.numPages;
-      const pageAspectRatios: number[] = [];
-
-      // Pre-calculate page aspect ratios for seamless layout
-      for (let i = 1; i <= totalSlides; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 1.0 });
-        pageAspectRatios.push(viewport.width / viewport.height);
-      }
-
-      const digest = await crypto.subtle.digest('SHA-256', sourceBytes.slice().buffer);
+      // Preserve existing annotation IDs while hashing concurrently with first-page loading.
+      // No up-front walk over hundreds of pages: other sizes are resolved on navigation.
+      const [page, digest] = await Promise.all([
+        pdf.getPage(1),
+        crypto.subtle.digest('SHA-256', sourceBytes as Uint8Array<ArrayBuffer>),
+      ]);
+      const viewport = page.getViewport({ scale: 1.0 });
+      const pageAspectRatios: number[] = [viewport.width / viewport.height];
       const fingerprint = Array.from(new Uint8Array(digest).slice(0, 12))
         .map((byte) => byte.toString(16).padStart(2, '0'))
         .join('');

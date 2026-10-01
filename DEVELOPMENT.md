@@ -55,7 +55,9 @@ NSIS 설치 파일은 `src-tauri\target\release\bundle\nsis`에 생성됩니다.
 
 ### A. PDF 렌더링 (`src/pdf/`)
 - `pdfLoader.ts`: PDF.js 인스턴스 초기화 및 메타데이터 파싱.
-  - 파일 로드 시 각 페이지의 가로/세로 비율(`pageAspectRatios`)을 미리 계산하여 슬라이드 넘김 시 레이아웃 흔들림(Layout Shift)을 방지합니다.
+  - 첫 페이지 크기만 초기 계산합니다. 다른 페이지의 실제 크기는 `TransitionContainer`에서 페이지 이동 시 계산합니다.
+  - 큰 PDF는 `PDFDataRangeTransport`로 워커에 256KB 구간을 요청에 따라 전달하며 기존 SHA-256 문서 ID를 유지합니다.
+  - `npm run dev`와 `npm run build`의 사전 단계에서 PDF.js의 CMap·표준 글꼴·WASM·ICC를 `public/pdfjs`에 준비합니다. 생성 폴더는 Git 추적에서 제외합니다.
 - `pdfRenderer.ts`: 고해상도 Canvas 렌더링.
   - DPR(Device Pixel Ratio) 계산과 캔버스 폭/높이 스타일 지정을 담당합니다.
 - `pdfCache.ts`: 슬라이드 사전 렌더링.
@@ -92,6 +94,8 @@ NSIS 설치 파일은 `src-tauri\target\release\bundle\nsis`에 생성됩니다.
 자동 재생, 필기 포함 PDF 내보내기, 청중 분리 창과 Windows NSIS 패키징은 구현되어 있습니다.
 청중 창은 팝업 허용 및 실행 환경에 따라 별도 확인이 필요합니다.
 
-- 표시 버전: 1.0f (내부 1.0.5)
+- 표시 버전: 1.1 (내부 1.1.0)
 - 회귀 검사: `node scripts/regression.cjs`
-- 상세 변경 및 제한: `docs/maintenance/2026-09-29-v1.0f-review/REPORT.md`
+- Rust 업데이트 검사: `cargo test --manifest-path src-tauri/Cargo.toml --lib`
+- 상세 변경 및 제한: `docs/maintenance/2026-10-02-v1.1-pdf-update/REPORT.md`
+- 버전별 기능: `VERSION_HISTORY.md`

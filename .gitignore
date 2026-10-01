@@ -17,6 +17,8 @@ dist-ssr
 target
 src-tauri/target
 release
+public/pdfjs
+tmp
 *.pfx
 *.p12
 *.key

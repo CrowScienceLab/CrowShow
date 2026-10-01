@@ -1,8 +1,8 @@
-# CrowShow 1.0 빠른 사용 안내
+# CrowShow 1.1 빠른 사용 안내
 
 ## 설치와 실행
 
-1. GitHub 공식 릴리스에서 `CrowShow-v1.0.0-Setup-x64.exe`를 받습니다.
+1. GitHub 공식 릴리스에서 `CrowShow-v1.1-Setup-x64.exe`와 `SHA256SUMS.txt`를 받습니다.
 2. 같은 릴리스의 `SHA256SUMS.txt`로 파일 무결성을 확인합니다.
 3. 설치 후 CrowShow를 실행하여 PDF를 끌어 놓거나 `열기` 버튼을 누릅니다.
 4. PDF 파일의 연결 프로그램으로 CrowShow를 선택해 바로 열 수도 있습니다.

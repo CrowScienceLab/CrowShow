@@ -12,6 +12,11 @@ export class PdfRenderer {
   private static canvasGenerations: WeakMap<HTMLCanvasElement, number> = new WeakMap();
   private pdfCache: PdfCache = PdfCache.getInstance();
 
+  public static cancel(canvas: HTMLCanvasElement): void {
+    PdfRenderer.canvasGenerations.set(canvas, (PdfRenderer.canvasGenerations.get(canvas) ?? 0) + 1);
+    PdfRenderer.canvasTasks.get(canvas)?.cancel();
+  }
+
   /**
    * Cancel any pending render task on a canvas
    */
