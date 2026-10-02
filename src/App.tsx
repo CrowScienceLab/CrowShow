@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from './types/settings';
 
 import { PdfLoader } from './pdf/pdfLoader';
 import { PdfCache } from './pdf/pdfCache';
+import { MIN_ZOOM, MAX_ZOOM, type PdfZoomMode } from './pdf/pdfViewport';
 import { AnnotationStore } from './annotations/annotationStore';
 import { PresentationTimer } from './presentation/presentationTimer';
 import { KeyboardShortcutManager, type ShortcutAction } from './presentation/keyboardShortcutManager';
@@ -92,7 +93,12 @@ export const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const [screenCurtain, setScreenCurtain] = useState<ScreenCurtain>('none');
   const [zoomFactor, setZoomFactor] = useState<number>(1.0);
-  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [zoomMode, setZoomMode] = useState<PdfZoomMode>('fit-page');
+  const [displayZoom, setDisplayZoom] = useState(1);
+  const changeZoom = useCallback((zoom: number) => {
+    setZoomMode('custom');
+    setZoomFactor(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)));
+  }, []);
   const [slideTransitions, setSlideTransitions] = useState<Record<number, TransitionType>>({});
   const [speakerNotes, setSpeakerNotes] = useState<Record<number, string>>({});
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
@@ -125,7 +131,6 @@ export const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const projectInputRef = useRef<HTMLInputElement | null>(null);
   const audienceWindowRef = useRef<Window | null>(null);
-  const panDragRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const lastWheelNavigationRef = useRef(0);
   const pdfLoadRequestRef = useRef(0);
 
@@ -177,7 +182,7 @@ export const App: React.FC = () => {
       setPdfBytes(sourceBytes);
       setCurrentSlide(1);
       setZoomFactor(1);
-      setPan({ x: 0, y: 0 });
+      setZoomMode('fit-page');
       setScreenCurtain('none');
       setIsAutoPlaying(false);
       annotationStore.setDocument(info.id);
@@ -334,7 +339,6 @@ export const App: React.FC = () => {
         soundEngine.playSlideSwitch(settings.transitionSound);
         setCurrentSlide(target);
         setScreenCurtain('none');
-        setPan({ x: 0, y: 0 });
       }
     },
     [docInfo, currentSlide, soundEngine, settings.transitionSound]
@@ -458,16 +462,15 @@ export const App: React.FC = () => {
           break;
         case 'zoomIn':
           soundEngine.playClick();
-          setZoomFactor((z) => Math.min(3.0, z + 0.15));
+          changeZoom(displayZoom + 0.15);
           break;
         case 'zoomOut':
           soundEngine.playClick();
-          setZoomFactor((z) => Math.max(0.5, z - 0.15));
+          changeZoom(displayZoom - 0.15);
           break;
         case 'zoomReset':
           soundEngine.playClick();
-          setZoomFactor(1.0);
-          setPan({ x: 0, y: 0 });
+          setZoomMode('fit-page');
           break;
       }
     };
@@ -478,6 +481,8 @@ export const App: React.FC = () => {
       shortcutManager.destroy();
     };
   }, [
+    changeZoom,
+    displayZoom,
     currentSlide,
     docInfo,
     viewMode,
@@ -708,37 +713,7 @@ export const App: React.FC = () => {
         <div
           ref={stageRef}
           className="slide-center-stage"
-          onWheel={(event) => {
-            event.preventDefault();
-            if (event.ctrlKey) {
-              setZoomFactor((zoom) => Math.max(0.5, Math.min(3, zoom - event.deltaY * 0.0015)));
-              return;
-            }
-            if (Math.abs(event.deltaY) < 8) return;
-            const now = performance.now();
-            if (now - lastWheelNavigationRef.current < 420) return;
-            lastWheelNavigationRef.current = now;
-            handleNavigate(currentSlide + (event.deltaY > 0 ? 1 : -1));
-          }}
           onContextMenu={(event) => event.preventDefault()}
-          onPointerDownCapture={(event) => {
-            if (zoomFactor <= 1 || !(event.button === 1 || (event.button === 0 && event.shiftKey))) return;
-            panDragRef.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
-            event.currentTarget.setPointerCapture(event.pointerId);
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-          onPointerMove={(event) => {
-            const drag = panDragRef.current;
-            if (!drag) return;
-            setPan({ x: drag.panX + event.clientX - drag.x, y: drag.panY + event.clientY - drag.y });
-          }}
-          onPointerUp={(event) => {
-            if (!panDragRef.current) return;
-            panDragRef.current = null;
-            event.currentTarget.releasePointerCapture(event.pointerId);
-          }}
-          onDoubleClick={() => setPan({ x: 0, y: 0 })}
         >
           <TransitionContainer
             key={docInfo.id}
@@ -748,7 +723,15 @@ export const App: React.FC = () => {
             containerWidth={containerDimensions.width}
             containerHeight={containerDimensions.height}
             zoomFactor={zoomFactor}
-            pan={pan}
+            zoomMode={zoomMode}
+            onZoomChange={changeZoom}
+            onScaleChange={setDisplayZoom}
+            onWheelNavigate={(direction) => {
+              const now = performance.now();
+              if (now - lastWheelNavigationRef.current < 420) return;
+              lastWheelNavigationRef.current = now;
+              handleNavigate(currentSlide + direction);
+            }}
             activeTool={activeTool}
             penColor={penColor}
             penWidth={penWidth}
@@ -782,22 +765,24 @@ export const App: React.FC = () => {
           tools={<ToolDock activeTool={activeTool} penColor={penColor} penWidth={penWidth} highlighterColor={highlighterColor} highlighterWidth={highlighterWidth} laserColor={laserColor} shapeType={shapeType} shapeFill={shapeFill} onSelectTool={handleSelectTool} onPenColorChange={setPenColor} onPenWidthChange={setPenWidth} onHighlighterColorChange={setHighlighterColor} onHighlighterWidthChange={setHighlighterWidth} onLaserColorChange={setLaserColor} onShapeTypeChange={setShapeType} onShapeFillChange={setShapeFill} />}
           currentSlide={currentSlide}
           totalSlides={docInfo.totalSlides}
-          zoomFactor={zoomFactor}
+          zoomFactor={displayZoom}
+          zoomMode={zoomMode}
           timer={presentationTimer}
           onNavigate={handleNavigate}
           onZoomIn={() => {
             soundEngine.playClick();
-            setZoomFactor((z) => Math.min(3.0, z + 0.15));
+            changeZoom(displayZoom + 0.15);
           }}
           onZoomOut={() => {
             soundEngine.playClick();
-            setZoomFactor((z) => Math.max(0.5, z - 0.15));
+            changeZoom(displayZoom - 0.15);
           }}
           onZoomReset={() => {
             soundEngine.playClick();
-            setZoomFactor(1.0);
-            setPan({ x: 0, y: 0 });
+            changeZoom(1);
           }}
+          onFitPage={() => setZoomMode('fit-page')}
+          onFitWidth={() => setZoomMode('fit-width')}
           onStartPresentation={handleStartPresentation}
           onGoToSlide={() => {
             soundEngine.playClick();

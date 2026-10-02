@@ -168,3 +168,12 @@ Build Tools 36.0.0, Platform Tools 37.0.1, NDK 28.2 및 Rust Android 대상 4종
 - 사용하지 않는 체험용 PDF 생성기는 D:\App coding\_archive\CrowShow-2026-09-29-v1.0f 로 보관했습니다.
 - 첨부 이미지를 다중 해상도 ICO로 변환하고 설치 패키지 및 바탕화면 바로가기 참조를 확인했습니다.
 - 표시 버전 1.0f / 내부 버전 1.0.5. 상세 검증은 docs/maintenance/2026-09-29-v1.0f-review/REPORT.md 참조.
+
+
+## 2026-10-02 · CrowShow 1.2 PDF 배율·화질·스크롤
+
+- Entropy_Masterclass.pdf의 페이지 1376×768pt, 첫 이미지 1376×768px를 분석했습니다.
+- 화면 맞춤을 100%로 표시하던 구조를 표준 96/72 환산 배율로 변경했습니다.
+- 페이지·너비 맞춤, 스크롤바·휠·드래그 이동, 마우스 위치 기준 확대를 구현했습니다.
+- 일반 배율 최소 2배 렌더링과 16MP 캔버스·96MiB PDF 캐시 제한을 적용했습니다.
+- 검증·배포 기록: docs/maintenance/2026-10-02-v1.2-pdf-quality-zoom/REPORT.md

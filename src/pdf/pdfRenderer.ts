@@ -1,5 +1,6 @@
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { PdfCache } from './pdfCache';
+import { getRenderDensity } from './pdfViewport';
 
 export interface RenderResult {
   width: number;
@@ -75,17 +76,17 @@ export class PdfRenderer {
     fitWidth *= zoomFactor;
     fitHeight *= zoomFactor;
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.5); // Cap DPR at 2.5 for memory & 60fps
+    const dpr = getRenderDensity(fitWidth, fitHeight, window.devicePixelRatio);
     const baseScale = fitWidth / unscaledViewport.width;
     const renderScale = baseScale * dpr;
 
     const viewport = page.getViewport({ scale: renderScale });
 
     // Set canvas dimensions
-    canvas.width = Math.floor(viewport.width);
-    canvas.height = Math.floor(viewport.height);
-    canvas.style.width = `${Math.floor(fitWidth)}px`;
-    canvas.style.height = `${Math.floor(fitHeight)}px`;
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    canvas.style.width = `${Math.round(fitWidth)}px`;
+    canvas.style.height = `${Math.round(fitHeight)}px`;
 
     const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) {

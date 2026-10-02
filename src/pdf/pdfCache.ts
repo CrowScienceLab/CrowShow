@@ -13,6 +13,7 @@ export class PdfCache {
   private static instance: PdfCache | null = null;
   private cache: Map<string, CacheEntry> = new Map();
   private maxEntries: number = 16;
+  private maxBytes = 96 * 1024 * 1024;
   private activeRenderTasks: Map<string, RenderTask> = new Map();
   private documentIds = new WeakMap<PDFDocumentProxy, number>();
   private nextDocumentId = 0;
@@ -48,6 +49,11 @@ export class PdfCache {
    */
   public set(pdf: PDFDocumentProxy, pageNumber: number, scale: number, canvas: HTMLCanvasElement, width: number, height: number): void {
     const key = this.getCacheKey(pdf, pageNumber, scale);
+    const bytes = width * height * 4;
+    if (bytes > this.maxBytes) return;
+    const otherBytes = () => [...this.cache.entries()].reduce((sum, [entryKey, entry]) =>
+      sum + (entryKey === key ? 0 : entry.width * entry.height * 4), 0);
+    while (otherBytes() + bytes > this.maxBytes && this.cache.size > 0) this.evictOldest();
     if (!this.cache.has(key) && this.cache.size >= this.maxEntries) {
       this.evictOldest();
     }

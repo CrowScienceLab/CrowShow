@@ -104,3 +104,12 @@ PC 프로젝트: `D:\App coding\CrowShow`
 2026-10-02에 Android 초기화 코드, Android Gradle 프로젝트, 모바일 반응형 UI,
 모바일 개발 문서와 검증 이미지를 `D:\App coding\CrowShow_m`으로 분리했습니다.
 이후 `CrowShow`는 Windows PC판만, `CrowShow_m`은 Android 모바일판만 관리합니다.
+
+
+## 2026-10-02 · CrowShow 1.2 PDF 배율·화질·스크롤
+
+- Entropy_Masterclass.pdf의 페이지 1376×768pt, 첫 이미지 1376×768px를 분석했습니다.
+- 화면 맞춤을 100%로 표시하던 구조를 표준 96/72 환산 배율로 변경했습니다.
+- 페이지·너비 맞춤, 스크롤바·휠·드래그 이동, 마우스 위치 기준 확대를 구현했습니다.
+- 일반 배율 최소 2배 렌더링과 16MP 캔버스·96MiB PDF 캐시 제한을 적용했습니다.
+- 검증·배포 기록: docs/maintenance/2026-10-02-v1.2-pdf-quality-zoom/REPORT.md

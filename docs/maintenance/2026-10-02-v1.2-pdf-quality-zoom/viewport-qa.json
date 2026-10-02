@@ -1,0 +1,330 @@
+{
+  "results": [
+    {
+      "step": "baseline-fit-labelled-100",
+      "bitmap": [
+        1664,
+        929
+      ],
+      "display": [
+        1664,
+        929
+      ],
+      "frame": [
+        1666,
+        929
+      ],
+      "annotation": [
+        1666,
+        929
+      ],
+      "viewport": [
+        1690,
+        978
+      ],
+      "content": [
+        1690,
+        978
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "zoom": "100%",
+      "slide": "슬라이드 1 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "new-fit",
+      "bitmap": [
+        3301,
+        1842
+      ],
+      "display": [
+        1650,
+        921
+      ],
+      "frame": [
+        1651,
+        921
+      ],
+      "annotation": [
+        1651,
+        921
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        1675,
+        978
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "zoom": "90%",
+      "mode": "fit-page",
+      "slide": "슬라이드 1 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "actual-100",
+      "bitmap": [
+        3670,
+        2048
+      ],
+      "display": [
+        1835,
+        1024
+      ],
+      "frame": [
+        1835,
+        1024
+      ],
+      "annotation": [
+        1835,
+        1024
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        1859,
+        1048
+      ],
+      "scroll": [
+        92,
+        35
+      ],
+      "zoom": "100%",
+      "mode": "custom",
+      "slide": "슬라이드 1 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "wheel-scroll",
+      "bitmap": [
+        3670,
+        2048
+      ],
+      "display": [
+        1835,
+        1024
+      ],
+      "frame": [
+        1835,
+        1024
+      ],
+      "annotation": [
+        1835,
+        1024
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        1859,
+        1048
+      ],
+      "scroll": [
+        92,
+        70
+      ],
+      "zoom": "100%",
+      "mode": "custom",
+      "slide": "슬라이드 1 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "ctrl-wheel",
+      "bitmap": [
+        4953,
+        2764
+      ],
+      "display": [
+        2476,
+        1382
+      ],
+      "frame": [
+        2477,
+        1382
+      ],
+      "annotation": [
+        2477,
+        1382
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        2501,
+        1406
+      ],
+      "scroll": [
+        416,
+        261
+      ],
+      "zoom": "135%",
+      "mode": "custom",
+      "slide": "슬라이드 1 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "fit-wheel-next",
+      "bitmap": [
+        3301,
+        1842
+      ],
+      "display": [
+        1650,
+        921
+      ],
+      "frame": [
+        1651,
+        921
+      ],
+      "annotation": [
+        1651,
+        921
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        1675,
+        978
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "zoom": "90%",
+      "mode": "fit-page",
+      "slide": "슬라이드 2 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "small-window",
+      "bitmap": [
+        982,
+        548
+      ],
+      "display": [
+        491,
+        274
+      ],
+      "frame": [
+        491,
+        274
+      ],
+      "annotation": [
+        491,
+        274
+      ],
+      "viewport": [
+        515,
+        418
+      ],
+      "content": [
+        515,
+        418
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "zoom": "27%",
+      "mode": "fit-page",
+      "slide": "슬라이드 2 / 13",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "portrait-width-fit",
+      "bitmap": [
+        3302,
+        4274
+      ],
+      "display": [
+        1651,
+        2137
+      ],
+      "frame": [
+        1651,
+        2137
+      ],
+      "annotation": [
+        1651,
+        2137
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        1675,
+        2161
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "zoom": "257%",
+      "mode": "fit-width",
+      "slide": "슬라이드 1 / 103",
+      "footerVisible": true,
+      "pageOverflow": false
+    },
+    {
+      "step": "portrait-scrolled",
+      "bitmap": [
+        3302,
+        4274
+      ],
+      "display": [
+        1651,
+        2137
+      ],
+      "frame": [
+        1651,
+        2137
+      ],
+      "annotation": [
+        1651,
+        2137
+      ],
+      "viewport": [
+        1675,
+        978
+      ],
+      "content": [
+        1675,
+        2161
+      ],
+      "scroll": [
+        0,
+        800
+      ],
+      "zoom": "257%",
+      "mode": "fit-width",
+      "slide": "슬라이드 1 / 103",
+      "footerVisible": true,
+      "pageOverflow": false
+    }
+  ],
+  "warnings": [
+    "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+  ]
+}

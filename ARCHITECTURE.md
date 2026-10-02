@@ -154,3 +154,7 @@ interface AnnotationStroke {
 1. **사전 렌더링 (Preload Strategy)**: 현재 슬라이드가 변경되면 `pdfCache.preloadNearbySlides(pdf, currentSlide, 2)`가 작동하여 앞뒤 2장의 슬라이드를 오프스크린 캔버스에 비동기로 렌더링해 둡니다. 사용자가 다음/이전 슬라이드로 넘길 때 PDF 파싱 과정을 거치지 않고 캐시된 캔버스를 `drawImage`하여 0ms로 화면이 전환됩니다.
 2. **DPR 보정 렌더링**: `Math.min(window.devicePixelRatio || 1, 2.5)` 배율을 곱해 렌더링하여 고해상도 모니터에서도 선명함을 유지하면서 과도한 메모리 사용을 억제합니다.
 3. **획 단위 지우개 Bounding-Box 사전 필터링**: 지우개 궤적 검사 시 모든 획의 모든 점을 전수 조사하지 않고, 획의 Bounding-box를 먼저 체크하여 불필요한 연산을 $O(1)$로 차단합니다.
+
+## 1.2 PDF 보기 구조
+
+`pdfViewport.ts`가 PDF 포인트를 96/72 CSS 픽셀로 환산하고 맞춤·사용자 배율 및 확대 기준점의 스크롤 위치를 계산합니다. `TransitionContainer`의 실제 viewport 크기는 ResizeObserver로 읽습니다. PDF·필기·효과는 같은 스크롤 콘텐츠 안에 배치합니다. 렌더링 밀도는 일반 화면에서 최소 2배, 최대 3배이며 캔버스 16MP·변 길이 16384px 제한에 따라 낮아질 수 있습니다. PDF 캐시는 96MiB와 16항목 제한을 함께 적용합니다.

@@ -1013,6 +1013,17 @@ button {
   border: 1px solid var(--border-subtle);
 }
 
+.pdf-fit-select {
+  width: 96px;
+  height: 26px;
+  padding: 0 3px;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  font-size: 11px;
+}
+
 .zoom-percentage-btn {
   font-size: 11px;
   font-weight: 600;
@@ -1613,6 +1624,8 @@ button {
 
 .fluent-status-bar {
   height: 48px;
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 0 12px;
   display: grid;
   grid-template-columns: auto minmax(100px, 1fr) auto auto auto;
@@ -1690,12 +1703,22 @@ button {
   .command-brand small { display: none; }
   .command-select-wrap { width: 88px; padding: 0 5px; }
   .command-select-wrap select { width: 62px; max-width: 62px; }
-  .fluent-status-bar { grid-template-columns: auto auto 1fr auto; gap: 4px; padding: 0 6px; }
+  .fluent-status-bar { grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px; padding: 0 6px; }
   .status-document-name { display: none; }
+  .status-section.center { display: none; }
+  .bottom-tool-dock { min-width: 0; overflow-x: auto; }
+  .status-tool { flex-shrink: 0; }
   .status-timer-box { padding: 4px 7px; gap: 5px; }
   .bottom-tool-dock { gap: 1px; }
   .status-tool { width: 29px; }
   .zoom-controls { padding: 3px 4px; }
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .fluent-status-bar { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .status-document-name, .status-section.center { display: none; }
+  .bottom-tool-dock { min-width: 0; overflow-x: auto; }
+  .status-tool { flex-shrink: 0; }
 }
 
 /* PRESENTER STUDIO */

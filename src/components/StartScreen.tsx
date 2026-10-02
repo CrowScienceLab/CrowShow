@@ -13,7 +13,7 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onOpenFile, recentFile
   };
   return <div className="start-player-shell" onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); accept(e.dataTransfer.files?.[0]); }}>
     <div className="start-command-preview">
-      <div className="command-brand"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.1</small></div>
+      <div className="command-brand"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.2</small></div>
       <span className="preview-command"><FolderOpen size={16} /> 열기</span><span className="preview-command primary"><Play size={15} /> 슬라이드쇼</span><span className="preview-command"><MonitorPlay size={16} /> 발표자</span><span className="preview-command muted">전환: 페이드</span><span className="preview-spacer" /><Settings size={18} />
     </div>
     <div className="empty-slide-workspace"><div className="empty-slide-paper"><img src="./yellow-billed-crow.png" alt="" /><span>PDF 프레젠테이션 영역</span></div></div>

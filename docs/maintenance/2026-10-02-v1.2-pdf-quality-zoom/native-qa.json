@@ -1,0 +1,271 @@
+{
+  "results": [
+    {
+      "step": "native-fit",
+      "bitmap": [
+        2342,
+        1308
+      ],
+      "display": [
+        1171,
+        654
+      ],
+      "frame": [
+        1171,
+        654
+      ],
+      "annotation": [
+        1171,
+        654
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "content": [
+        1195,
+        798
+      ],
+      "viewport": [
+        1195,
+        798
+      ],
+      "zoom": "64%",
+      "slide": "슬라이드 1 / 13",
+      "framePosition": [
+        242,
+        126
+      ],
+      "version": "CrowShowv1.2"
+    },
+    {
+      "step": "native-100",
+      "bitmap": [
+        3670,
+        2048
+      ],
+      "display": [
+        1835,
+        1024
+      ],
+      "frame": [
+        1835,
+        1024
+      ],
+      "annotation": [
+        1835,
+        1024
+      ],
+      "scroll": [
+        332,
+        132.6666717529297
+      ],
+      "content": [
+        1859,
+        1048
+      ],
+      "viewport": [
+        1195,
+        783
+      ],
+      "zoom": "100%",
+      "slide": "슬라이드 1 / 13",
+      "framePosition": [
+        -90,
+        -66.66667175292969
+      ],
+      "version": "CrowShowv1.2"
+    },
+    {
+      "step": "native-cursor-zoom",
+      "bitmap": [
+        4594,
+        2564
+      ],
+      "display": [
+        2297,
+        1282
+      ],
+      "frame": [
+        2298,
+        1282
+      ],
+      "annotation": [
+        2298,
+        1282
+      ],
+      "scroll": [
+        611.3333129882812,
+        243.3333282470703
+      ],
+      "content": [
+        2322,
+        1306
+      ],
+      "viewport": [
+        1195,
+        783
+      ],
+      "zoom": "125%",
+      "slide": "슬라이드 1 / 13",
+      "framePosition": [
+        -369.3333435058594,
+        -177.33334350585938
+      ],
+      "version": "CrowShowv1.2"
+    },
+    {
+      "step": "native-shift-wheel",
+      "bitmap": [
+        4594,
+        2564
+      ],
+      "display": [
+        2297,
+        1282
+      ],
+      "frame": [
+        2298,
+        1282
+      ],
+      "annotation": [
+        2298,
+        1282
+      ],
+      "scroll": [
+        761.3333129882812,
+        243.3333282470703
+      ],
+      "content": [
+        2322,
+        1306
+      ],
+      "viewport": [
+        1195,
+        783
+      ],
+      "zoom": "125%",
+      "slide": "슬라이드 1 / 13",
+      "framePosition": [
+        -519.3333740234375,
+        -177.33334350585938
+      ],
+      "version": "CrowShowv1.2"
+    },
+    {
+      "step": "native-shift-drag",
+      "bitmap": [
+        4594,
+        2564
+      ],
+      "display": [
+        2297,
+        1282
+      ],
+      "frame": [
+        2298,
+        1282
+      ],
+      "annotation": [
+        2298,
+        1282
+      ],
+      "scroll": [
+        841.3333129882812,
+        343.3333435058594
+      ],
+      "content": [
+        2322,
+        1306
+      ],
+      "viewport": [
+        1195,
+        783
+      ],
+      "zoom": "125%",
+      "slide": "슬라이드 1 / 13",
+      "framePosition": [
+        -599.3333740234375,
+        -277.3333435058594
+      ],
+      "version": "CrowShowv1.2"
+    },
+    {
+      "step": "native-portrait",
+      "bitmap": [
+        2342,
+        3030
+      ],
+      "display": [
+        1171,
+        1515
+      ],
+      "frame": [
+        1171,
+        1515
+      ],
+      "annotation": [
+        1171,
+        1515
+      ],
+      "scroll": [
+        0,
+        0
+      ],
+      "content": [
+        1195,
+        1539
+      ],
+      "viewport": [
+        1195,
+        783
+      ],
+      "zoom": "182%",
+      "slide": "슬라이드 1 / 103",
+      "framePosition": [
+        242,
+        66
+      ],
+      "version": "CrowShowv1.2"
+    },
+    {
+      "step": "native-portrait-scroll",
+      "bitmap": [
+        2342,
+        3030
+      ],
+      "display": [
+        1171,
+        1515
+      ],
+      "frame": [
+        1171,
+        1515
+      ],
+      "annotation": [
+        1171,
+        1515
+      ],
+      "scroll": [
+        0,
+        700
+      ],
+      "content": [
+        1195,
+        1539
+      ],
+      "viewport": [
+        1195,
+        783
+      ],
+      "zoom": "182%",
+      "slide": "슬라이드 1 / 103",
+      "framePosition": [
+        242,
+        -634
+      ],
+      "version": "CrowShowv1.2"
+    }
+  ],
+  "errors": []
+}

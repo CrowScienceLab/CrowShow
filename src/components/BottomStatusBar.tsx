@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PresentationTimer } from '../presentation/presentationTimer';
+import { MIN_ZOOM, MAX_ZOOM, type PdfZoomMode } from '../pdf/pdfViewport';
 import {
   ChevronLeft,
   ChevronRight,
@@ -19,11 +20,14 @@ interface BottomStatusBarProps {
   currentSlide: number;
   totalSlides: number;
   zoomFactor: number;
+  zoomMode: PdfZoomMode;
   timer: PresentationTimer;
   onNavigate: (slideNumber: number) => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onZoomReset: () => void;
+  onFitPage: () => void;
+  onFitWidth: () => void;
   onStartPresentation: () => void;
   onGoToSlide: () => void;
 }
@@ -34,11 +38,14 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
   currentSlide,
   totalSlides,
   zoomFactor,
+  zoomMode,
   timer,
   onNavigate,
   onZoomIn,
   onZoomOut,
   onZoomReset,
+  onFitPage,
+  onFitWidth,
   onStartPresentation,
   onGoToSlide,
 }) => {
@@ -115,10 +122,20 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
       {/* Right: Zoom & Fullscreen */}
       <div className="status-section right">
         <div className="zoom-controls">
+          <select className="pdf-fit-select" aria-label="PDF 화면 맞춤" value={zoomMode}
+            onChange={(event) => {
+              if (event.target.value === 'fit-page') onFitPage();
+              else if (event.target.value === 'fit-width') onFitWidth();
+              else onZoomReset();
+            }}>
+            <option value="fit-page">페이지 맞춤</option>
+            <option value="fit-width">너비 맞춤</option>
+            <option value="custom">배율 지정</option>
+          </select>
           <button
             className="icon-btn-xs"
             onClick={onZoomOut}
-            disabled={zoomFactor <= 0.5}
+            disabled={zoomFactor <= MIN_ZOOM}
             title="화면 축소 (-)"
           >
             <ZoomOut size={14} />
@@ -127,7 +144,7 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
           <button
             className="zoom-percentage-btn"
             onClick={onZoomReset}
-            title="100% 화면 맞춤 (0)"
+            title="PDF 배율 — 클릭하면 실제 크기 100%"
           >
             {Math.round(zoomFactor * 100)}%
           </button>
@@ -135,7 +152,7 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
           <button
             className="icon-btn-xs"
             onClick={onZoomIn}
-            disabled={zoomFactor >= 3.0}
+            disabled={zoomFactor >= MAX_ZOOM}
             title="화면 확대 (+)"
           >
             <ZoomIn size={14} />
@@ -143,8 +160,8 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
 
           <button
             className="icon-btn-xs"
-            onClick={onZoomReset}
-            title="화면 맞춤 (Fit to View)"
+            onClick={onFitPage}
+            title="페이지 전체 맞춤 (0)"
           >
             <Scan size={14} />
           </button>

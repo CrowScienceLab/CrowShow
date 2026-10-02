@@ -60,7 +60,6 @@ export const AudienceWindowView: React.FC = () => {
           containerWidth={size.width}
           containerHeight={size.height}
           zoomFactor={1}
-          pan={{ x: 0, y: 0 }}
           activeTool="select"
           penColor="#ef4444"
           penWidth={4}

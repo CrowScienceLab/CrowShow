@@ -1,12 +1,13 @@
-# CrowShow 1.1
+# CrowShow 1.2
 
 이 폴더는 Windows PC판 전용 프로젝트입니다. Android 모바일판은
 `D:\App coding\CrowShow_m`에서 별도로 관리합니다. PC판 개발 경과는
 [PC_DEVELOPMENT_HISTORY.md](PC_DEVELOPMENT_HISTORY.md)에 정리되어 있습니다.
 
-현재 정식 버전은 **1.1**(내부 버전 `1.1.0`)입니다.
-[버전별 기능과 변경 사항](VERSION_HISTORY.md), [1.1 릴리스 안내](docs/RELEASE-v1.1.0.md)를 참고하십시오.
-1.1은 업데이트 다운로드 호환성, 대용량 PDF의 첫 페이지 우선 처리와 구간 단위 워커 전달,
+현재 정식 버전은 **1.2**(내부 버전 `1.2.0`)입니다.
+[버전별 기능과 변경 사항](VERSION_HISTORY.md), [1.2 릴리스 안내](docs/RELEASE-v1.2.0.md)를 참고하십시오.
+1.2는 표준 PDF 100% 배율, 고해상도 렌더링, 페이지·너비 맞춤과 확대 문서 스크롤을 제공합니다.
+1.1에서 개선한 업데이트 다운로드 호환성, 대용량 PDF의 첫 페이지 우선 처리와 구간 단위 워커 전달,
 일부 한글 PDF의 문자 누락을 개선했습니다. 한글 문자 매핑·글꼴·이미지·색상 리소스는 오프라인 포함됩니다.
 
 PDF 수업 자료를 오프라인에서 프레젠테이션처럼 활용하는 `Crow Science Lab`의 전용 플레이어입니다.
@@ -93,7 +94,7 @@ PowerPoint 전체를 복제하지 않습니다.
 ## 4. Windows 설치
 
 [GitHub 최신 릴리스](https://github.com/CrowScienceLab/CrowShow/releases/latest)에서
-`CrowShow-v1.1-Setup-x64.exe`와 `SHA256SUMS.txt`를 함께 내려받으십시오. 배포판은
+`CrowShow-v1.2-Setup-x64.exe`와 `SHA256SUMS.txt`를 함께 내려받으십시오. 배포판은
 코드 서명이 없어 Windows SmartScreen 경고가 표시될 수 있습니다. 공식 주소와 SHA-256을
 확인하고 [Windows 설치 보안 안내](WINDOWS_SECURITY.md)를 읽은 뒤 설치하십시오.
 

@@ -18,6 +18,22 @@ function load(source, dependencies = {}) {
 }
 
 async function main() {
+  const { getPdfLayout, getZoomScroll, getRenderDensity } = load('src/pdf/pdfViewport.ts');
+  const actualSize = getPdfLayout(1376, 768, 1600, 900, 'custom', 1);
+  assert.equal(actualSize.width, 1835, '100% must use PDF points at 96 CSS pixels/inch');
+  assert.equal(actualSize.height, 1024);
+  const fitted = getPdfLayout(1376, 768, 1600, 900, 'fit-page', 1);
+  assert(fitted.width < actualSize.width && fitted.zoom < 1, 'fit-page must report its real scale');
+  const portrait = getPdfLayout(595, 842, 1200, 800, 'fit-width', 1);
+  assert.equal(portrait.width, 1176);
+  assert(portrait.height > 800, 'width-fit portrait pages must remain scrollable');
+  const anchored = getZoomScroll(600, 800, 1200, 1600, 800, 600, 0, 112, 400, 300);
+  assert.equal(anchored.left, 212);
+  assert.equal(anchored.top, 512, 'zoom must preserve the document point under the centre');
+  assert.equal(getRenderDensity(1200, 800, 1), 2);
+  const boundedDensity = getRenderDensity(10000, 10000, 2);
+  assert(10000 * 10000 * boundedDensity ** 2 <= 16_000_001, 'render pixels must be bounded');
+  assert(getRenderDensity(100, 100000, 1) * 100000 <= 16384, 'very tall pages must stay within canvas dimension limits');
   const { PdfCache } = load('src/pdf/pdfCache.ts');
   const cache = new PdfCache();
   const a = {}, b = {}, canvasA = {}, canvasB = {};
@@ -32,6 +48,10 @@ async function main() {
   assert.equal(cache.cache.size, 16, 'replacing an entry must not evict another page');
   cache.clear();
   assert.equal(cache.get(a, 1, 1), undefined);
+  for (let p = 1; p <= 8; p++) cache.set(a, p, 2, {}, 3000, 3000);
+  assert([...cache.cache.values()].reduce((sum, item) => sum + item.width * item.height * 4, 0) <= 96 * 1024 * 1024,
+    'high-quality PDF cache must respect its memory budget');
+  cache.clear();
   let releasePage;
   const delayedPage = new Promise(resolve => { releasePage = resolve; });
   const pendingRender = cache.renderOffscreen({ getPage: () => delayedPage }, 1, 1);

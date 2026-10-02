@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { ToolType, ShapeType, LaserPointerState, SpotlightState } from '../types/annotation';
 import type { ScreenCurtain, SlideTransitionConfig } from '../types/presentation';
 import { PdfRenderer } from '../pdf/pdfRenderer';
+import { getPdfLayout, getZoomScroll, PAGE_PADDING, MIN_ZOOM, MAX_ZOOM, type PdfZoomMode } from '../pdf/pdfViewport';
 import { AnnotationCanvas } from '../annotations/annotationCanvas';
 import { EffectsLayer } from '../annotations/effectsLayer';
 import { TransitionEngine } from './transitionEngine';
@@ -15,7 +16,10 @@ interface TransitionContainerProps {
   containerWidth: number;
   containerHeight: number;
   zoomFactor: number;
-  pan: { x: number; y: number };
+  zoomMode?: PdfZoomMode;
+  onZoomChange?: (zoom: number) => void;
+  onScaleChange?: (zoom: number) => void;
+  onWheelNavigate?: (direction: number) => void;
   activeTool: ToolType;
   penColor: string;
   penWidth: number;
@@ -40,7 +44,10 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
   containerWidth,
   containerHeight,
   zoomFactor,
-  pan,
+  zoomMode = 'fit-page',
+  onZoomChange,
+  onScaleChange,
+  onWheelNavigate,
   activeTool,
   penColor,
   penWidth,
@@ -62,16 +69,31 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
   const secondaryCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const pdfRendererRef = useRef(new PdfRenderer());
   const transitionEngine = TransitionEngine.getInstance();
-  const [pageSize, setPageSize] = useState<{ pdf: PDFDocumentProxy; page: number; aspect: number } | null>(null);
-  const resolvedAspect = pageSize?.pdf === pdfDoc && pageSize.page === currentSlide
-    ? pageSize.aspect : slideAspect;
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: containerWidth, height: containerHeight });
+  const [pageSize, setPageSize] = useState<{ pdf: PDFDocumentProxy; page: number; width: number; height: number } | null>(null);
+  const resolvedSize = pageSize?.pdf === pdfDoc && pageSize.page === currentSlide
+    ? pageSize : { width: 960, height: 960 / slideAspect };
+  const zoomAnchor = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const previousLayout = useRef<{ pdf: PDFDocumentProxy; page: number; width: number; height: number; left: number; top: number } | null>(null);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      setViewportSize({ width: element.clientWidth, height: element.clientHeight });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     void pdfDoc.getPage(currentSlide).then((page) => {
       if (cancelled) return;
       const viewport = page.getViewport({ scale: 1 });
-      setPageSize({ pdf: pdfDoc, page: currentSlide, aspect: viewport.width / viewport.height });
+      setPageSize({ pdf: pdfDoc, page: currentSlide, width: viewport.width, height: viewport.height });
     }).catch((error) => { if (!cancelled) console.warn('PDF page size warning:', error); });
     return () => { cancelled = true; };
   }, [pdfDoc, currentSlide]);
@@ -106,29 +128,56 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
     radius: spotlightRadius,
   });
 
-  // Calculate slide dimensions purely and synchronously (Zero state-loop!)
-  const { slideWidth, slideHeight } = useMemo(() => {
-    if (containerWidth <= 0 || containerHeight <= 0) {
-      return { slideWidth: 800, slideHeight: 450 };
+  const layout = useMemo(() => getPdfLayout(resolvedSize.width, resolvedSize.height,
+    viewportSize.width, viewportSize.height, zoomMode, zoomFactor),
+  [resolvedSize.width, resolvedSize.height, viewportSize.width, viewportSize.height, zoomMode, zoomFactor]);
+  const slideWidth = layout.width;
+  const slideHeight = layout.height;
+
+  useEffect(() => { onScaleChange?.(layout.zoom); }, [layout.zoom, onScaleChange]);
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const previous = previousLayout.current;
+    if (previous?.pdf === pdfDoc && previous.page === currentSlide && zoomMode === 'custom') {
+      const anchor = zoomAnchor.current;
+      const position = getZoomScroll(previous.width, previous.height, slideWidth, slideHeight,
+        element.clientWidth, element.clientHeight, anchor?.left ?? previous.left, anchor?.top ?? previous.top,
+        anchor?.x ?? element.clientWidth / 2, anchor?.y ?? element.clientHeight / 2);
+      element.scrollLeft = position.left;
+      element.scrollTop = position.top;
+    } else {
+      element.scrollLeft = 0;
+      element.scrollTop = 0;
     }
-    const padding = 24; // Subtle margin around slide for stage elegance
-    const availW = Math.max(100, containerWidth - padding);
-    const availH = Math.max(100, containerHeight - padding);
+    zoomAnchor.current = null;
+    previousLayout.current = { pdf: pdfDoc, page: currentSlide, width: slideWidth, height: slideHeight,
+      left: element.scrollLeft, top: element.scrollTop };
+  }, [pdfDoc, currentSlide, slideWidth, slideHeight, zoomMode]);
 
-    const aspect = resolvedAspect > 0 ? resolvedAspect : 16 / 9;
-    let w = availW;
-    let h = availW / aspect;
-
-    if (h > availH) {
-      h = availH;
-      w = availH * aspect;
-    }
-
-    w = Math.floor(w * zoomFactor);
-    h = Math.floor(h * zoomFactor);
-
-    return { slideWidth: w, slideHeight: h };
-  }, [containerWidth, containerHeight, resolvedAspect, zoomFactor]);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const deltaScale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? element.clientHeight : 1;
+      const deltaY = event.deltaY * deltaScale;
+      if (event.ctrlKey) {
+        const bounds = element.getBoundingClientRect();
+        zoomAnchor.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top,
+          left: element.scrollLeft, top: element.scrollTop };
+        onZoomChange?.(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, layout.zoom * Math.exp(-deltaY * 0.0015))));
+      } else if (element.scrollHeight > element.clientHeight + 2 || element.scrollWidth > element.clientWidth + 2) {
+        element.scrollBy({ left: event.shiftKey ? deltaY : event.deltaX * deltaScale,
+          top: event.shiftKey ? 0 : deltaY });
+      } else if (Math.abs(deltaY) >= 8) {
+        onWheelNavigate?.(deltaY > 0 ? 1 : -1);
+      }
+    };
+    element.addEventListener('wheel', onWheel, { passive: false });
+    return () => element.removeEventListener('wheel', onWheel);
+  }, [layout.zoom, onZoomChange, onWheelNavigate]);
 
   // Handle slide transitions
   useEffect(() => {
@@ -218,7 +267,36 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
 
   return (
     <div
-      className="transition-viewport"
+      ref={scrollRef}
+      className="transition-viewport pdf-scroll-viewport"
+      data-zoom-mode={zoomMode}
+      onScroll={() => {
+        const element = scrollRef.current;
+        if (element && previousLayout.current) {
+          previousLayout.current.left = element.scrollLeft;
+          previousLayout.current.top = element.scrollTop;
+        }
+      }}
+      onPointerDownCapture={(event) => {
+        const element = scrollRef.current;
+        if (!element || !(event.button === 1 || (event.button === 0 && event.shiftKey))
+          || (element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight)) return;
+        dragRef.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
+        element.setPointerCapture(event.pointerId);
+        event.preventDefault(); event.stopPropagation();
+      }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        const element = scrollRef.current;
+        if (!drag || !element) return;
+        element.scrollLeft = drag.left - (event.clientX - drag.x);
+        element.scrollTop = drag.top - (event.clientY - drag.y);
+      }}
+      onPointerUp={(event) => {
+        dragRef.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerCancel={() => { dragRef.current = null; }}
       style={
         {
           '--trans-duration': `${transitionConfig.durationMs}ms`,
@@ -226,6 +304,10 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
         } as React.CSSProperties
       }
     >
+      <div className="slide-scroll-content" style={{
+        width: Math.max(viewportSize.width, slideWidth + PAGE_PADDING),
+        height: Math.max(viewportSize.height, slideHeight + PAGE_PADDING),
+      }}>
       {/* Exiting Slide Frame (only during transition) */}
       {transitionState.isTransitioning && transitionState.prevSlide && (
         <div
@@ -233,7 +315,6 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
           style={{
             width: `${slideWidth}px`,
             height: `${slideHeight}px`,
-            transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))`,
           }}
         >
           <canvas ref={secondaryCanvasRef} className="pdf-canvas" />
@@ -246,7 +327,6 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
         style={{
           width: `${slideWidth}px`,
           height: `${slideHeight}px`,
-          transform: `translate(calc(-50% + ${pan.x}px), calc(-50% + ${pan.y}px))`,
         }}
       >
         {/* PDF Background Canvas */}
@@ -283,6 +363,7 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
           screenCurtain={screenCurtain}
           sourceCanvasRef={primaryCanvasRef}
         />
+      </div>
       </div>
     </div>
   );
