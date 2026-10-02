@@ -49,3 +49,7 @@ PDF 이미지 캐시는 96MiB·16항목 이내로 관리합니다. 이 수치는
 - 릴리스: https://github.com/CrowScienceLab/CrowShow/releases/tag/v1.2.0
 - 버전별 기능과 사용자 안내를 갱신했습니다. 이전 정식 릴리스는 각 태그에 보존합니다.
 - GitHub 게시 후 실제 다운로드 해시와 업데이트 검사 결과는 `published-verification.json`으로 추가합니다.
+
+## 게시 후 확인
+
+GitHub 최신 정식 릴리스 v1.2.0과 두 배포 파일을 확인했습니다. 게시된 설치 파일을 다시 내려받아 위 SHA-256과 일치하는 것을 확인했습니다. 기존 Windows 설치본 1.1.0의 실제 업데이트 검사는 available / 1.2.0, 올바른 설치 파일·체크섬 URL, error=null을 반환했습니다. 새 1.2.0 실행 파일은 current / 1.2.0, error=null을 반환했습니다. 검증 과정에서 설치 업데이트 실행은 하지 않았습니다.

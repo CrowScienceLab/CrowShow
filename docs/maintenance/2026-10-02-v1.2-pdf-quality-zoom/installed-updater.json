@@ -1,0 +1,9 @@
+{
+  "status": "available",
+  "version": "1.2.0",
+  "assetName": "CrowShow-v1.2-Setup-x64.exe",
+  "assetUrl": "https://github.com/CrowScienceLab/CrowShow/releases/download/v1.2.0/CrowShow-v1.2-Setup-x64.exe",
+  "checksumUrl": "https://github.com/CrowScienceLab/CrowShow/releases/download/v1.2.0/SHA256SUMS.txt",
+  "releaseUrl": "https://github.com/CrowScienceLab/CrowShow/releases/tag/v1.2.0",
+  "error": null
+}

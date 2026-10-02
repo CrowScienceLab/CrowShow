@@ -1,0 +1,16 @@
+{
+  "release": "https://github.com/CrowScienceLab/CrowShow/releases/tag/v1.2.0",
+  "tag": "v1.2.0",
+  "latest": true,
+  "draft": false,
+  "prerelease": false,
+  "installer": "CrowShow-v1.2-Setup-x64.exe",
+  "size": 7617126,
+  "sha256": "63ecdda983db65832cfa895901c32991a38bf8636d3ffdb181c267e91a4bbe0b",
+  "publishedDownloadHashMatches": true,
+  "installedVersion": "1.1.0",
+  "installedUpdaterStatus": "available",
+  "newUpdaterStatus": "current",
+  "updaterError": null,
+  "sourceCommit": "70c88c9"
+}
