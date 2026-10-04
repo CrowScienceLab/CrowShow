@@ -5,7 +5,7 @@ export interface DesktopPdfPayload {
 }
 
 interface UpdateCheckResult {
-  status: 'current' | 'available' | 'no-release' | 'error';
+  status: 'current' | 'available' | 'no-release' | 'error' | 'store';
   version?: string;
   assetName?: string;
   assetUrl?: string;
@@ -42,6 +42,10 @@ export async function checkForDesktopUpdates(manual = true): Promise<void> {
     try {
       const { invoke } = await import('@tauri-apps/api/core');
       const update = await invoke<UpdateCheckResult>('check_for_updates');
+      if (update.status === 'store') {
+        if (manual) alert('Microsoft Store 설치본입니다. Microsoft Store의 라이브러리에서 업데이트를 확인하세요.');
+        return;
+      }
       if (update.status === 'current') {
         if (manual) alert(`CrowShow v${update.version ?? '1.0'}은 최신 버전입니다.`);
         return;

@@ -120,6 +120,17 @@ fn get_initial_pdf(state: State<'_, PendingPdf>) -> Result<Option<PdfPayload>, S
 
 #[tauri::command]
 async fn check_for_updates() -> Result<UpdateCheckResult, String> {
+    if cfg!(feature = "microsoft-store") {
+        return Ok(UpdateCheckResult {
+            status: "store".into(),
+            version: Some(env!("CARGO_PKG_VERSION").into()),
+            asset_name: None,
+            asset_url: None,
+            checksum_url: None,
+            release_url: Some("https://apps.microsoft.com/detail/9N2G0ST27LBW".into()),
+            error: None,
+        });
+    }
     let response = github_client()?
         .get(RELEASE_API)
         .send()
@@ -222,6 +233,9 @@ async fn download_and_install_update(
     asset_url: String,
     checksum_url: String,
 ) -> Result<(), String> {
+    if cfg!(feature = "microsoft-store") {
+        return Err("Microsoft Store 설치본은 스토어에서 업데이트합니다.".into());
+    }
     if !validate_release_url(&asset_url)
         || !validate_release_url(&checksum_url)
         || !asset_name.to_ascii_lowercase().starts_with("crowshow-v")

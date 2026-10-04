@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+ xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+ xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+ xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+ IgnorableNamespaces="uap uap10 rescap">
+ <Identity Name="170231F2.CrowShow" Publisher="CN=2953C017-B9C7-4852-BD5D-ABFF600E3840" Version="1.2.0.0" ProcessorArchitecture="x64" />
+ <Properties>
+  <DisplayName>CrowShow</DisplayName><PublisherDisplayName>까마구</PublisherDisplayName>
+  <Description>PDF 수업 자료를 발표하고 필기하는 오프라인 PC 플레이어</Description>
+  <Logo>Assets\StoreLogo.png</Logo>
+ </Properties>
+ <Resources><Resource Language="ko-kr" /><Resource Language="en-us" /></Resources>
+ <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
+ <Applications>
+  <Application Id="App" Executable="crowshow.exe" uap10:RuntimeBehavior="packagedClassicApp" uap10:TrustLevel="mediumIL">
+   <uap:VisualElements DisplayName="CrowShow" Description="오프라인 PDF 발표와 필기" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png">
+    <uap:DefaultTile ShortName="CrowShow" Wide310x150Logo="Assets\Wide310x150Logo.png" Square310x310Logo="Assets\Square310x310Logo.png" />
+   </uap:VisualElements>
+   <Extensions>
+    <uap:Extension Category="windows.fileTypeAssociation">
+     <uap:FileTypeAssociation Name="crowshowpdf"><uap:DisplayName>PDF document</uap:DisplayName><uap:SupportedFileTypes><uap:FileType>.pdf</uap:FileType></uap:SupportedFileTypes></uap:FileTypeAssociation>
+    </uap:Extension>
+   </Extensions>
+  </Application>
+ </Applications>
+ <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
+</Package>
