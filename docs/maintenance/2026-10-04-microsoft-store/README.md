@@ -25,4 +25,10 @@ The GitHub v1.2.0 NSIS installer and its checksums remain unchanged.
 
 ## Publication status
 
-Pricing, properties, age ratings and packages show Complete. Korean listing and reviewer instructions are being finalized. Certification has not yet been submitted; publication requires Microsoft approval.
+All required sections completed, including the Korean listing with three screenshots. Reviewer instructions were saved under Additional Testing Information. Submission Options specifies publishing as soon as certification passes.
+
+Partner Center accepted the submission on 2026-10-04 and shows **In certification**, with Submission complete and Pre-processing in progress. Publication has not yet completed; Microsoft approval is required. Evidence: `submission-status.png`.
+
+Store URL after publication: https://apps.microsoft.com/detail/9N2G0ST27LBW
+
+Packaging staging and temporary diagnostics were moved to `D:\App coding\_archive\CrowShow-2026-10-04-microsoft-store`.
