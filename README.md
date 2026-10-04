@@ -1,7 +1,7 @@
 # CrowShow 1.2
 
 이 폴더는 Windows PC판 전용 프로젝트입니다. Android 모바일판은
-`D:\App coding\CrowShow_m`에서 별도로 관리합니다. PC판 개발 경과는
+`CrowShow_m`에서 별도로 관리합니다. PC판 개발 경과는
 [PC_DEVELOPMENT_HISTORY.md](PC_DEVELOPMENT_HISTORY.md)에 정리되어 있습니다.
 
 현재 정식 버전은 **1.2**(내부 버전 `1.2.0`)입니다.
