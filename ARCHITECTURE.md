@@ -1,4 +1,4 @@
-> 현행 로컬 검토판: **1.5 (2026-11-10)**. GitHub·Microsoft Store 미업로드. [1.5 검증 보고서](docs/maintenance/2026-11-10-v1.5/REPORT.md). 이전 검토판 설명과 충돌하면 아래 1.5 내용이 우선합니다.
+> 현행 버전: **1.5 (2026-11-10)**. GitHub 정식 릴리스 공개 완료. Microsoft Store는 1.5 패키지 제작·업데이트 초안 생성 후 업로드 대기입니다. [배포 결과](docs/maintenance/2026-11-10-v1.5-release/REPORT.md). 이전 검토 기록보다 이 상태가 우선합니다.
 
 > 최신 검토판은 2026-11-09 **1.3 Review4**입니다. 발표 하위 메뉴·컴팩트 팝업·레이저 점/상시 잔상·PDF 너비 맞춤 100%·전환음을 수정하고, 독립 Notebook 파일과 PC용 Drive 동기화 폴더 저장을 추가했습니다. GitHub·Microsoft Store 미업로드. [사용법](USER_GUIDE.md), [검증 보고서](docs/maintenance/2026-11-09-v1.3-review4/REPORT.md). 이전 단계와 충돌하면 Review4가 우선합니다.
 
