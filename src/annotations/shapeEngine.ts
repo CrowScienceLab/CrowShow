@@ -12,7 +12,7 @@ export class ShapeEngine {
     width: number,
     filled: boolean,
     canvasWidth: number,
-    canvasHeight: number
+    canvasHeight: number, fillColor?:string, border=true
   ): void {
     if (points.length < 2) return;
 
@@ -31,12 +31,33 @@ export class ShapeEngine {
 
     ctx.save();
     ctx.strokeStyle = color;
-    ctx.fillStyle = color;
+    ctx.fillStyle = fillColor || color;
     ctx.lineWidth = width;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    if(!border)ctx.strokeStyle='rgba(0,0,0,0)';
 
     switch (shapeType) {
+      case 'arrow':
+      case 'double-arrow': {
+        const angle=Math.atan2(y1-y0,x1-x0),distance=Math.hypot(x1-x0,y1-y0);
+        const length=Math.min(distance*.4,Math.max(18,width*6)),headWidth=length/3;
+        const head=(x:number,y:number,a:number)=>{const bx=x-Math.cos(a)*length,by=y-Math.sin(a)*length;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(bx-Math.sin(a)*headWidth/2,by+Math.cos(a)*headWidth/2);ctx.lineTo(bx+Math.sin(a)*headWidth/2,by-Math.cos(a)*headWidth/2);ctx.closePath();ctx.fillStyle=color;ctx.fill();};
+        this.drawLine(ctx,x0,y0,x1-Math.cos(angle)*length*.8,y1-Math.sin(angle)*length*.8);head(x1,y1,angle);if(shapeType==='double-arrow')head(x0,y0,angle+Math.PI);break;
+      }
+      case 'dashed-line':
+        ctx.setLineDash([Math.max(6,width*3),Math.max(4,width*2)]);this.drawLine(ctx,x0,y0,x1,y1);break;
+      case 'triangle':
+      case 'diamond': {
+        ctx.beginPath();ctx.moveTo(left+w/2,top);
+        if(shapeType==='triangle'){ctx.lineTo(left+w,top+h);ctx.lineTo(left,top+h);}
+        else {ctx.lineTo(left+w,top+h/2);ctx.lineTo(left+w/2,top+h);ctx.lineTo(left,top+h/2);}
+        ctx.closePath();if(filled)ctx.fill();ctx.stroke();break;
+      }
+      case 'check':
+        ctx.beginPath();ctx.moveTo(left,top+h*.5);ctx.lineTo(left+w*.35,top+h);ctx.lineTo(left+w,top);ctx.stroke();break;
+      case 'cross':
+        this.drawLine(ctx,left,top,left+w,top+h);this.drawLine(ctx,left+w,top,left,top+h);break;
       case 'line':
         this.drawLine(ctx, x0, y0, x1, y1);
         break;
@@ -57,6 +78,16 @@ export class ShapeEngine {
         this.drawHeart(ctx, left, top, w, h, filled);
         break;
 
+      case 'smile': {
+        ctx.beginPath();ctx.ellipse(left+w/2,top+h/2,w/2,h/2,0,0,Math.PI*2);if(filled)ctx.fill();ctx.stroke();
+        ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;for(const x of [.34,.66]){ctx.beginPath();ctx.ellipse(left+w*x,top+h*.37,Math.max(1,w*.035),Math.max(1,h*.045),0,0,Math.PI*2);ctx.fill();}ctx.beginPath();ctx.ellipse(left+w*.5,top+h*.48,w*.24,h*.23,0,0,Math.PI);ctx.stroke();ctx.restore();break;
+      }
+      case 'cosmos': {
+        const cx=left+w/2,cy=top+h/2;ctx.beginPath();for(let i=0;i<=240;i++){const a=i/240*Math.PI*2,r=.31+.17*Math.cos(a*8),x=cx+Math.cos(a)*w*r,y=cy+Math.sin(a)*h*r;if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);}ctx.closePath();if(filled)ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(cx,cy,w*.09,h*.09,0,0,Math.PI*2);ctx.stroke();break;
+      }
+      case 'sticky-note': {
+        ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left+w,top);ctx.lineTo(left+w,top+h*.75);ctx.lineTo(left+w*.75,top+h);ctx.lineTo(left,top+h);ctx.closePath();if(filled)ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(left+w,top+h*.75);ctx.lineTo(left+w*.75,top+h*.75);ctx.lineTo(left+w*.75,top+h);ctx.stroke();break;
+      }
       case 'speech-bubble':
         this.drawSpeechBubble(ctx, left, top, w, h, filled);
         break;

@@ -17,7 +17,8 @@ export type ShortcutAction =
   | 'toolHighlighter'
   | 'toolEraser'
   | 'toolLaser'
-  | 'toolSpotlight'
+  | 'toolLasso'
+  | 'toggleNotes' | 'print' | 'help'
   | 'toolText'
   | 'zoomIn'
   | 'zoomOut'
@@ -47,6 +48,7 @@ export class KeyboardShortcutManager {
 
   private handleKeyDown(e: KeyboardEvent): void {
     if (!this.enabled) return;
+    if(e.key==='F1'){e.preventDefault();this.dispatch('help',e);return;}
 
     // Ignore if typing in text input or textarea
     const target = e.target as HTMLElement | null;
@@ -57,10 +59,13 @@ export class KeyboardShortcutManager {
       return;
     }
 
+    if(target?.closest('[role=dialog],.modal-overlay,.modal-backdrop'))return;
     const isCtrl = e.ctrlKey || e.metaKey;
     const isShift = e.shiftKey;
     const key = e.key;
 
+    if (isCtrl && key.toLowerCase() === 'p') {e.preventDefault();this.dispatch('print',e);return;}
+    if (isCtrl && ['+','=','-','_','0'].includes(key)) {e.preventDefault();this.dispatch(key==='0'?'zoomReset':['-','_'].includes(key)?'zoomOut':'zoomIn',e);return;}
     // F5: Start Presentation
     if (key === 'F5') {
       e.preventDefault();
@@ -104,7 +109,7 @@ export class KeyboardShortcutManager {
     }
 
     // Slide navigation: Prev
-    if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(key) && !isCtrl) {
+    if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(key) && !isCtrl) {
       e.preventDefault();
       this.dispatch('prevSlide', e);
       return;
@@ -123,7 +128,7 @@ export class KeyboardShortcutManager {
     }
 
     // Presentation Curtains
-    if (key === 'b' || key === 'B') {
+    if (!isShift && (key === 'b' || key === 'B')) {
       e.preventDefault();
       this.dispatch('blackScreen', e);
       return;
@@ -136,6 +141,8 @@ export class KeyboardShortcutManager {
 
     // Single-key Tool shortcuts (only if no Ctrl)
     if (!isCtrl) {
+      const actions:Record<string,ShortcutAction>={n:'toggleNotes'};
+      if(actions[key.toLowerCase()]){e.preventDefault();this.dispatch(actions[key.toLowerCase()],e);return;}
       if (key === 'p' || key === 'P') {
         this.dispatch('toolPen', e);
         return;
@@ -152,8 +159,8 @@ export class KeyboardShortcutManager {
         this.dispatch('toolLaser', e);
         return;
       }
-      if (key === 's' || key === 'S') {
-        this.dispatch('toolSpotlight', e);
+      if (key === 'q' || key === 'Q') {
+        this.dispatch('toolLasso', e);
         return;
       }
       if (key === 'v' || key === 'V') {

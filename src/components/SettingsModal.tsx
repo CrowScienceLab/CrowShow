@@ -1,7 +1,7 @@
 import React from 'react';
 import type { AppSettings } from '../types/settings';
 import type { TransitionType } from '../types/presentation';
-import { Settings, X, Moon, Sun, Monitor, RefreshCw, FileType2 } from 'lucide-react';
+import { Settings, X, Moon, Sun, Palette, RefreshCw, FileType2 } from 'lucide-react';
 
 interface SettingsModalProps {
   settings: AppSettings;
@@ -35,10 +35,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="modal-body settings-grid">
           {/* Theme Settings */}
-          <div className="settings-row">
+          <div className="settings-row theme-settings-row">
             <div className="settings-label-group">
-              <span className="settings-label">테마 모드 (Theme)</span>
-              <span className="settings-desc">UI 색상 스타일을 선택합니다</span>
+              <span className="settings-label">UI 색상 스타일을 선택</span>
             </div>
             <div className="theme-toggle-group">
               <button
@@ -56,12 +55,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <span>Light</span>
               </button>
               <button
-                className={`theme-btn ${settings.theme === 'system' ? 'active' : ''}`}
-                onClick={() => onUpdateSettings({ theme: 'system' })}
+                className={`theme-btn ${settings.theme === 'pink' ? 'active' : ''}`}
+                onClick={() => onUpdateSettings({ theme: 'pink' })}
               >
-                <Monitor size={16} />
-                <span>System</span>
+                <Palette size={16} />
+                <span>Pink</span>
               </button>
+              <button className={`theme-btn ${settings.theme==='blue'?'active':''}`} onClick={()=>onUpdateSettings({theme:'blue'})}><Palette size={16}/><span>Blue</span></button>
             </div>
           </div>
 
@@ -150,7 +150,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div className="settings-row settings-about-row">
             <div className="settings-label-group" style={{ width: '100%' }}>
-              <span className="settings-label">CrowShow v1.2 · Crow Science Lab</span>
+              <span className="settings-label">CrowShow v1.5 · Crow Science Lab</span>
               <span className="settings-desc">
                 오프라인 PDF 수업을 위한 프레젠테이션 플레이어
               </span>
@@ -158,8 +158,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <summary style={{ cursor: 'pointer', fontWeight: 700 }}>빠른 사용 방법</summary>
                 <div style={{ marginTop: '8px', color: 'var(--text-secondary)' }}>
                   PDF를 열고 좌우 버튼 또는 마우스 휠로 페이지를 이동합니다. V는 선택,
-                  P는 펜, H는 형광펜, T는 텍스트, L은 레이저, S는 스포트라이트이며
-                  F5로 전체화면 발표를 시작합니다. 중요한 필기와 설정은 .crowshow 파일로
+                  P는 펜, H는 형광펜, E는 지우개, Q는 올가미, T는 텍스트, L은 레이저입니다.
+                  F5는 발표, N은 노트, Ctrl+P는 인쇄입니다. 하단 공통 도구에서 필기 도구를 선택합니다. 중요한 필기와 설정은 .crowshow 파일로
                   내보내 보관하십시오.
                 </div>
               </details>

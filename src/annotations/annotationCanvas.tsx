@@ -1,1069 +1,176 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import type {
-  AnnotationStroke,
-  NormalizedPoint,
-  ToolType,
-  ShapeType,
-  LaserPointerState,
-  SpotlightState,
-} from '../types/annotation';
+import { RotateCw, FlipHorizontal2, FlipVertical2, Copy, ClipboardPaste, Trash2, Bold, Italic, Underline, Square } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { AnnotationStroke, NormalizedPoint, ToolType, ShapeType, LaserPointerState, EraserMode } from '../types/annotation';
+import { AnnotationStore } from './annotationStore';
 import { StrokeEngine } from './strokeEngine';
 import { EraserEngine } from './eraserEngine';
-import { AnnotationStore } from './annotationStore';
-import { Check, X, Edit3, Trash2 } from 'lucide-react';
-
-interface TextEditorState {
-  x: number;
-  y: number;
-  text: string;
-  strokeId?: string; // If editing an existing text stroke
-  fontSize?: number;
-  color?: string;
+import { strokeBounds, inPolygon, selectInRectangle, selectionHandles, resizeSelection, type ResizeHandle } from './geometry';
+import { openExternalLink } from '../utils/desktopBridge';
+import { validateAnnotations } from '../utils/projectValidation';
+import { getRenderDensity } from '../pdf/pdfViewport';
+interface Props {
+ slideNumber:number;width:number;height:number;activeTool:ToolType;penColor:string;penWidth:number;highlighterColor:string;highlighterWidth:number;laserColor:string;
+ shapeWidth?:number;shapeBorder?:boolean;shapeFillColor?:string;shapeOpacity?:number;laserSize?:number;laserTrailDurationMs?:number;
+ shapeType?:ShapeType;shapeFill?:boolean;enableStylusPressure?:boolean;readOnly?:boolean;store?:AnnotationStore;eraserMode?:EraserMode;penOnly?:boolean;enableTilt?:boolean;eraserWidth?:number;keyboardActive?:boolean;
+ onRequestSelectTool?:()=>void;onLaserChange:(state:LaserPointerState)=>void;
 }
-
-interface AnnotationCanvasProps {
-  slideNumber: number;
-  width: number;
-  height: number;
-  activeTool: ToolType;
-  penColor: string;
-  penWidth: number;
-  highlighterColor: string;
-  highlighterWidth: number;
-  laserColor: string;
-  spotlightRadius: number;
-  shapeType?: ShapeType;
-  shapeFill?: boolean;
-  enableStylusPressure?: boolean;
-  laserTrailEnabled?: boolean;
-  readOnly?: boolean;
-  onRequestSelectTool?: () => void;
-  onLaserChange: (state: LaserPointerState) => void;
-  onSpotlightChange: (state: SpotlightState) => void;
+let copied:AnnotationStroke[]=[];
+type Editor={x:number;y:number;text:string;fontSize:number;fontFamily:string;bold:boolean;italic:boolean;underline:boolean;textOutline:boolean;id?:string;color:string};
+type Gesture={mode:'ink'|'erase'|'area'|'lasso'|'box'|'move'|'resize'|'rotate';start:NormalizedPoint;points:NormalizedPoint[];original:AnnotationStroke[];selected:AnnotationStroke[];handle?:ResizeHandle};
+const fonts=['system-ui, sans-serif','"Malgun Gothic", sans-serif','"Batang", serif','Arial, sans-serif','Georgia, serif','Consolas, monospace'];
+export function AnnotationCanvas({slideNumber,width,height,activeTool,penColor,penWidth,highlighterColor,highlighterWidth,laserColor,shapeType='rectangle',shapeFill=false,shapeWidth=3,shapeBorder=true,shapeFillColor,shapeOpacity=1,laserSize=4,laserTrailDurationMs=700,enableStylusPressure=true,readOnly=false,store,eraserMode='object',penOnly=false,enableTilt=true,eraserWidth=28,keyboardActive=true,onRequestSelectTool,onLaserChange}:Props) {
+ const annotationStore=store??AnnotationStore.getInstance();
+ const canvas=useRef<HTMLCanvasElement>(null),gesture=useRef<Gesture|null>(null),trail=useRef<LaserPointerState['trail']>([]);
+ const [selected,setSelected]=useState<string[]>([]),[revision,setRevision]=useState(0),[editor,setEditor]=useState<Editor|null>(null);
+ const input=useRef<HTMLTextAreaElement>(null);
+ const backing=useRef<{canvas:HTMLCanvasElement;strokes:AnnotationStroke[];width:number;height:number}|null>(null);
+ const pendingFrame=useRef(0);
+ useEffect(()=>()=>cancelAnimationFrame(pendingFrame.current),[]);
+ const strokes=annotationStore.getStrokesForSlide(slideNumber), selection=strokes.filter(s=>selected.includes(s.id));
+ const bounds=selection.length?selection.map(s=>strokeBounds(s,width,height)).reduce((a,b)=>({x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),right:Math.max(a.right,b.right),bottom:Math.max(a.bottom,b.bottom),width:0,height:0,cx:0,cy:0})):null;
+ const redraw=useCallback(()=>{
+   const ctx=canvas.current?.getContext('2d');if(!ctx)return;
+   const ratio=canvas.current!.width/width;ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,width,height);
+   const all=annotationStore.getStrokesForSlide(slideNumber);
+   if(!backing.current||backing.current.strokes!==all||backing.current.width!==canvas.current!.width||backing.current.height!==canvas.current!.height){
+     const image=backing.current?.canvas||document.createElement('canvas');image.width=canvas.current!.width;image.height=canvas.current!.height;const saved=image.getContext('2d')!;saved.setTransform(ratio,0,0,ratio,0,0);StrokeEngine.renderStrokes(saved,all,width,height);backing.current={canvas:image,strokes:all,width:image.width,height:image.height};
+   }
+   ctx.drawImage(backing.current.canvas,0,0,width,height);
+   if(['select','lasso'].includes(activeTool)) for(const s of all.filter(s=>selected.includes(s.id))) {
+     const b=strokeBounds(s,width,height);ctx.strokeStyle='#2682ff';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.strokeRect(b.x-5,b.y-5,b.width+10,b.height+10);ctx.setLineDash([]);
+   }
+   const chosen=all.filter(s=>selected.includes(s.id));
+   if(chosen.length&&['select','lasso'].includes(activeTool)) {
+     const bb=chosen.map(s=>strokeBounds(s,width,height));const x=Math.min(...bb.map(b=>b.x)),y=Math.min(...bb.map(b=>b.y)),r=Math.max(...bb.map(b=>b.right)),b=Math.max(...bb.map(b=>b.bottom));
+     const handles=selectionHandles({x,y,right:r,bottom:b},height);ctx.fillStyle='#fff';ctx.strokeStyle='#2682ff';ctx.lineWidth=1.5;for(const [,hx,hy] of handles.resize){ctx.fillRect(hx-4,hy-4,8,8);ctx.strokeRect(hx-4,hy-4,8,8)}ctx.beginPath();ctx.moveTo((x+r)/2,y);ctx.lineTo(handles.rotate.x,handles.rotate.y);ctx.stroke();ctx.beginPath();ctx.arc(handles.rotate.x,handles.rotate.y,6,0,Math.PI*2);ctx.fill();ctx.stroke();
+   }
+   const g=gesture.current;if(!g)return;
+   if(g.mode==='ink') StrokeEngine.renderLiveStroke(ctx,g.points,activeTool==='shape'?'shape':activeTool==='highlighter'?'highlighter':'pen',activeTool==='highlighter'?highlighterColor:penColor,activeTool==='highlighter'?highlighterWidth:activeTool==='shape'?shapeWidth:penWidth,width,height,shapeType,shapeFill,shapeFillColor,shapeBorder,activeTool==='shape'?shapeOpacity:1);
+   if(g.mode==='area'||g.mode==='lasso'||g.mode==='box') {
+     ctx.strokeStyle='#2682ff';ctx.fillStyle='#2682ff22';ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();
+     if(g.mode==='area'||g.mode==='box') {const a=g.start,b=g.points[g.points.length-1];ctx.rect(a.x*width,a.y*height,(b.x-a.x)*width,(b.y-a.y)*height);}
+     else {g.points.forEach((p,i)=>i?ctx.lineTo(p.x*width,p.y*height):ctx.moveTo(p.x*width,p.y*height));ctx.closePath();}
+     ctx.fill();ctx.stroke();ctx.setLineDash([]);
+   }
+ },[annotationStore,slideNumber,width,height,activeTool,selected,penColor,penWidth,highlighterColor,highlighterWidth,shapeType,shapeFill,shapeWidth,shapeBorder,shapeFillColor,shapeOpacity]);
+ useEffect(()=>annotationStore.subscribe(()=>{if(!annotationStore.isEditing)setRevision(n=>n+1);}),[annotationStore]);
+ useEffect(()=>{redraw();},[redraw,revision]);
+ useEffect(()=>{const loaded=()=>{backing.current=null;redraw()};window.addEventListener('crowshow-image-ready',loaded);return()=>window.removeEventListener('crowshow-image-ready',loaded);},[redraw]);
+ const editorOpen=editor!==null,editorId=editor?.id;
+ useEffect(()=>{if(editorOpen)input.current?.focus();},[editorId,editorOpen]);
+ const point=(e:{clientX:number;clientY:number;pressure?:number;pointerType?:string;tiltX?:number;tiltY?:number;twist?:number}):NormalizedPoint=>{const r=canvas.current!.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height)),pressure:enableStylusPressure&&e.pointerType==='pen'?Math.max(.02,Math.min(1,e.pressure??.5)):.5,tiltX:enableTilt&&e.pointerType==='pen'?e.tiltX||0:0,tiltY:enableTilt&&e.pointerType==='pen'?e.tiltY||0:0,twist:enableTilt&&e.pointerType==='pen'?e.twist||0:0,time:Date.now()};};
+ const openText=(s?:AnnotationStroke,p?:NormalizedPoint)=>{
+   const anchor=s?.points[0]??p!;setEditor({x:Math.max(6,Math.min(width-330,anchor.x*width)),y:Math.max(6,Math.min(height-190,anchor.y*height)),text:s?.text||'',fontSize:s?(s.fontSize||22)*width/(s.referenceWidth||width):24,fontFamily:s?.fontFamily||fonts[0],bold:s?.bold??false,italic:s?.italic??false,underline:s?.underline??false,textOutline:s?.textOutline??false,id:s?.id,color:s?.color||penColor});
+ };
+ const paste=useCallback(()=>{if(!copied.length)return;annotationStore.beginTransaction();const ids:string[]=[];for(const s of copied){const id=crypto.randomUUID();ids.push(id);annotationStore.addStroke({...structuredClone(s),id,slideNumber,points:s.points.map(p=>({...p,x:Math.min(.95,p.x+.025),y:Math.min(.95,p.y+.025)}))});}annotationStore.endTransaction();setSelected(ids);onRequestSelectTool?.();},[annotationStore,slideNumber,onRequestSelectTool]);
+ useEffect(()=>{
+   if(readOnly||!keyboardActive)return;
+   const key=(e:KeyboardEvent)=>{
+     if((e.target as HTMLElement).closest('input,textarea,select,[contenteditable=true]'))return;
+     const chosen=annotationStore.getStrokesForSlide(slideNumber).filter(s=>selected.includes(s.id));
+     if(e.key==='Delete'&&chosen.length){e.preventDefault();annotationStore.removeStrokes(slideNumber,chosen);setSelected([]);}
+   };
+   const editable=(e:Event)=>(e.target as HTMLElement)?.closest('input,textarea,select,[contenteditable=true]');
+   const copyInk=(e:ClipboardEvent)=>{if(editable(e))return;const chosen=annotationStore.getStrokesForSlide(slideNumber).filter(s=>selected.includes(s.id));if(!chosen.length)return;copied=structuredClone(chosen);e.preventDefault();e.clipboardData?.setData('application/x-crowshow-ink',JSON.stringify(chosen));e.clipboardData?.setData('text/plain','CrowShow 필기');};
+   const pasteInk=(e:ClipboardEvent)=>{if(editable(e))return;if(Array.from(e.clipboardData?.items||[]).some(item=>item.type.startsWith('image/')))return;const ink=e.clipboardData?.getData('application/x-crowshow-ink');if(ink){try{const strokes=JSON.parse(ink);const candidate={[slideNumber]:strokes};if(!validateAnnotations(candidate))return;copied=candidate[slideNumber];}catch{return;}}else if(e.clipboardData?.getData('text/plain')!=='CrowShow 필기')return;e.preventDefault();paste();};
+   window.addEventListener('keydown',key);window.addEventListener('copy',copyInk);window.addEventListener('paste',pasteInk);
+   return()=>{window.removeEventListener('keydown',key);window.removeEventListener('copy',copyInk);window.removeEventListener('paste',pasteInk);};
+ },[annotationStore,slideNumber,selected,readOnly,keyboardActive,paste]);
+ const erase=(p:NormalizedPoint)=>{
+   const current=annotationStore.getStrokesForSlide(slideNumber);
+   const hit=current.filter(s=>{if(s.tool==='text'||s.tool==='shape'||s.tool==='image'||s.tool==='link'){const b=strokeBounds(s,width,height);return p.x*width>=b.x-6&&p.x*width<=b.right+6&&p.y*height>=b.y-6&&p.y*height<=b.bottom+6;}return EraserEngine.hitTestStroke(p,s,width,height,eraserWidth/2);});
+   annotationStore.removeStrokes(slideNumber,hit);
+ };
+ const down=(e:React.PointerEvent<HTMLCanvasElement>)=>{
+   if(readOnly||e.button!==0||(penOnly&&e.pointerType==='touch'))return;
+   canvas.current?.focus({preventScroll:true});
+   const p=point(e),all=annotationStore.getStrokesForSlide(slideNumber);
+   if(activeTool==='text'){const hit=[...all].reverse().find(s=>s.tool==='text'&&inBounds(p,s));openText(hit,p);return;}
+   if(activeTool==='laser'){onLaserChange({x:p.x,y:p.y,active:false,color:laserColor,trail:[]});return;}
+   e.currentTarget.setPointerCapture(e.pointerId);annotationStore.beginTransaction();
+   let mode:Gesture['mode']='ink',chosen=selection;let handle:ResizeHandle|undefined;
+   if(activeTool==='select'||activeTool==='lasso') {
+     const handles=bounds?selectionHandles(bounds,height):null;handle=handles?.resize.find(([,x,y])=>Math.hypot(p.x*width-x,p.y*height-y)<11)?.[0];
+     const rotate=handles&&Math.hypot(p.x*width-handles.rotate.x,p.y*height-handles.rotate.y)<12;
+     if(rotate)mode='rotate';else if(handle)mode='resize';
+     else if(selection.some(s=>inBounds(p,s)))mode='move';
+     else {
+       const hit=[...all].reverse().find(s=>inBounds(p,s));
+       chosen=hit?[hit]:[];setSelected(chosen.map(s=>s.id));mode=hit?'move':activeTool==='select'?'box':'lasso';
+     }
+   } else if(activeTool==='eraser')mode=eraserMode==='area'?'area':'erase';
+   gesture.current={mode,start:p,points:[p],original:all,selected:chosen,handle};
+   if(mode==='erase')erase(p);redraw();
+ };
+ function inBounds(p:NormalizedPoint,s:AnnotationStroke){const b=strokeBounds(s,width,height);return p.x*width>=b.x-7&&p.x*width<=b.right+7&&p.y*height>=b.y-7&&p.y*height<=b.bottom+7;}
+ const move=(e:React.PointerEvent<HTMLCanvasElement>)=>{
+   if(readOnly||(penOnly&&e.pointerType==='touch'))return;
+   const p=point(e);
+   if(activeTool==='laser') {
+     const now=Date.now();trail.current=[...trail.current.filter(t=>now-t.time<laserTrailDurationMs),{...p,time:now}];
+     onLaserChange({x:p.x,y:p.y,active:!(e.buttons&1),color:laserColor,size:laserSize,durationMs:laserTrailDurationMs,trail:trail.current});return;
+   }
+   const g=gesture.current;if(!g)return;
+   if(g.mode==='ink') {
+     if(activeTool==='shape') {let end=p;if(e.shiftKey&&['line','dashed-line','arrow','double-arrow'].includes(shapeType)){const dx=(p.x-g.start.x)*width,dy=(p.y-g.start.y)*height,a=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*(Math.PI/4),d=Math.hypot(dx,dy);end={...p,x:g.start.x+Math.cos(a)*d/width,y:g.start.y+Math.sin(a)*d/height};}if(e.shiftKey&&shapeType!=='line'&&shapeType!=='dashed-line'&&shapeType!=='arrow'&&shapeType!=='double-arrow'){const d=Math.max(Math.abs(p.x-g.start.x)*width,Math.abs(p.y-g.start.y)*height);end={...p,x:g.start.x+Math.sign(p.x-g.start.x)*d/width,y:g.start.y+Math.sign(p.y-g.start.y)*d/height};}g.points=[g.start,end];}
+     else for(const sample of e.nativeEvent.getCoalescedEvents?.()||[e.nativeEvent])g.points.push(point(sample));
+   } else if(g.mode==='erase')erase(p);
+   else if(g.mode==='lasso'||g.mode==='area'||g.mode==='box')g.points.push(p);
+   else {
+     const bs=g.selected.map(s=>strokeBounds(s,width,height));const x=Math.min(...bs.map(b=>b.x))/width,y=Math.min(...bs.map(b=>b.y))/height;
+     const r=Math.max(...bs.map(b=>b.right))/width,b=Math.max(...bs.map(b=>b.bottom))/height;
+     const dx=p.x-g.start.x,dy=p.y-g.start.y;
+     const angle=Math.atan2((p.y-(y+b)/2)*height,(p.x-(x+r)/2)*width)-Math.atan2((g.start.y-(y+b)/2)*height,(g.start.x-(x+r)/2)*width);
+     const resized=g.mode==='resize'?resizeSelection(g.selected,g.handle||'se',g.start,p,width,height,e.shiftKey):[];
+     const ids=new Set(g.selected.map(s=>s.id));
+     annotationStore.replaceSlide(slideNumber,g.original.map(s=>!ids.has(s.id)?s:g.mode==='resize'?resized.find(item=>item.id===s.id)!:{...s,
+       points:s.points.map(pt=>g.mode==='move'?{...pt,x:pt.x+dx,y:pt.y+dy}:pt),
+       ...(g.mode==='rotate'?{rotation:(s.rotation||0)+angle}:{})
+     }));
+   }if(!pendingFrame.current)pendingFrame.current=requestAnimationFrame(()=>{pendingFrame.current=0;redraw()});
+ };
+ const up=(e:React.PointerEvent<HTMLCanvasElement>)=>{
+   if(e.button!==0)return;const g=gesture.current;if(!g)return;
+   if(g.mode==='ink'&&g.points.length) {
+     if(activeTool!=='shape'||g.points.length===2)annotationStore.addStroke({id:crypto.randomUUID(),slideNumber,tool:activeTool==='shape'?'shape':activeTool==='highlighter'?'highlighter':'pen',shapeType,shapeFill,shapeFillColor,shapeBorder,color:activeTool==='highlighter'?highlighterColor:penColor,width:activeTool==='highlighter'?highlighterWidth:activeTool==='shape'?shapeWidth:penWidth,opacity:activeTool==='shape'?shapeOpacity:1,points:g.points,createdAt:Date.now(),referenceWidth:width});
+   } else if(g.mode==='box') {
+     setSelected(selectInRectangle(g.original,g.start,g.points[g.points.length-1],width,height).map(s=>s.id));
+   } else if(g.mode==='lasso') {
+     setSelected(g.original.filter(s=>s.points.some(p=>inPolygon(p,g.points))||inPolygon({x:strokeBounds(s,width,height).cx/width,y:strokeBounds(s,width,height).cy/height},g.points)).map(s=>s.id));
+   } else if(g.mode==='area') {
+     const end=g.points[g.points.length-1],x=Math.min(g.start.x,end.x)*width,r=Math.max(g.start.x,end.x)*width,y=Math.min(g.start.y,end.y)*height,b=Math.max(g.start.y,end.y)*height;
+     annotationStore.removeStrokes(slideNumber,g.original.filter(s=>{const box=strokeBounds(s,width,height);return box.right>=x&&box.x<=r&&box.bottom>=y&&box.y<=b;}));
+   }
+   gesture.current=null;annotationStore.endTransaction();if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);redraw();
+ };
+ const transformSelected=(kind:'rotate'|'flipX'|'flipY')=>{annotationStore.beginTransaction();selection.forEach(s=>annotationStore.updateStroke(slideNumber,kind==='rotate'?{...s,rotation:(s.rotation||0)+Math.PI/2}:{...s,[kind]:!s[kind]}));annotationStore.endTransaction();};
+ const saveText=()=>{
+   if(!editor)return;const previous=strokes.find(s=>s.id===editor.id);
+   if(editor.text.trim()) {
+     const next:AnnotationStroke={...(previous||{}),id:editor.id||crypto.randomUUID(),slideNumber,tool:'text',color:editor.color,width:penWidth,opacity:1,points:previous?.points||[{x:editor.x/width,y:editor.y/height}],text:editor.text,fontSize:editor.fontSize,fontFamily:editor.fontFamily,bold:editor.bold,italic:editor.italic,underline:editor.underline,textOutline:editor.textOutline,referenceWidth:width,createdAt:previous?.createdAt||Date.now()};
+     if(previous)annotationStore.updateStroke(slideNumber,next);else annotationStore.addStroke(next);setSelected([next.id]);
+   }setEditor(null);onRequestSelectTool?.();
+ };
+ return <div className="annotation-layer" style={{position:'absolute',inset:0,width,height,pointerEvents:readOnly?'none':undefined}}>
+   <canvas tabIndex={0} ref={canvas} width={Math.floor(width*getRenderDensity(width,height,window.devicePixelRatio))} height={Math.floor(height*getRenderDensity(width,height,window.devicePixelRatio))} style={{position:'absolute',inset:0,width,height,touchAction:'none',zIndex:10,cursor:activeTool==='text'?'text':activeTool==='select'?'default':'crosshair'}}
+    onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>{const g=gesture.current;if(g)annotationStore.replaceSlide(slideNumber,g.original);gesture.current=null;annotationStore.endTransaction();redraw();}}
+    onPointerLeave={()=>{if(activeTool==='laser')onLaserChange({x:0,y:0,active:false,color:laserColor,trail:[]});}}
+    onDoubleClick={e=>{if(readOnly||e.button!==0)return;const p=point(e),s=[...strokes].reverse().find(s=>(s.tool==='text'||s.tool==='link')&&inBounds(p,s));if(s?.tool==='link'&&s.url)void openExternalLink(s.url);else if(s)openText(s);}}/>
+   {!readOnly&&selection.length>0&&['select','lasso'].includes(activeTool)&&!editor&&<div className="selection-actions" style={{left:Math.max(5,Math.min(width-440,bounds!.x)),top:bounds!.y>100?bounds!.y-92:Math.min(height-75,bounds!.bottom+38)}}>
+    <button title="복사" aria-label="선택 객체 복사" onClick={()=>{copied=structuredClone(selection);}}><Copy size={16}/></button><button title="붙여넣기" aria-label="선택 객체 붙여넣기" onClick={paste}><ClipboardPaste size={16}/></button>
+    <input aria-label="선택 객체 색상" type="color" value={selection[0].color} onChange={e=>{annotationStore.beginTransaction();selection.forEach(s=>annotationStore.updateStroke(slideNumber,{...s,color:e.target.value}));annotationStore.endTransaction();}}/>
+    {selection.length===1&&selection[0].tool==='link'&&<button onClick={()=>void openExternalLink(selection[0].url||'')}>링크 열기</button>}
+    {selection.length===1&&selection[0].tool==='text'&&<button onClick={()=>openText(selection[0])}>문장 수정</button>}
+    <button title="90도 회전 · 위 핸들 드래그로 자유 회전" aria-label="선택 객체 회전" onClick={()=>transformSelected('rotate')}><RotateCw size={16}/></button><button title="좌우 반전" aria-label="선택 객체 좌우 반전" onClick={()=>transformSelected('flipX')}><FlipHorizontal2 size={16}/></button><button title="상하 반전" aria-label="선택 객체 상하 반전" onClick={()=>transformSelected('flipY')}><FlipVertical2 size={16}/></button>
+    <label className="selection-angle" title="회전 각도 직접 입력"><input type="number" aria-label="회전 각도" min={-360} max={360} step={1} value={Math.round((selection[0].rotation||0)*180/Math.PI)%360} onChange={e=>{const degrees=Number(e.target.value);if(!Number.isFinite(degrees))return;annotationStore.beginTransaction();selection.forEach(s=>annotationStore.updateStroke(slideNumber,{...s,rotation:degrees*Math.PI/180}));annotationStore.endTransaction();}}/>°</label>
+    <button title="삭제" aria-label="선택 객체 삭제" onClick={()=>{annotationStore.removeStrokes(slideNumber,selection);setSelected([]);}}><Trash2 size={16}/></button>
+   </div>}
+   {editor&&<div className="text-editor-v13" style={{left:editor.x,top:editor.y}} onPointerDown={e=>e.stopPropagation()}>
+     <div className="text-format"><select aria-label="텍스트 글꼴" value={editor.fontFamily} onChange={e=>setEditor({...editor,fontFamily:e.target.value})}>{fonts.map((font,i)=><option key={font} value={font}>{['기본 고딕','맑은 고딕','바탕','Arial','Georgia','Consolas'][i]}</option>)}</select>
+     <input type="number" aria-label="텍스트 크기" min={8} max={160} value={Math.round(editor.fontSize)} onChange={e=>setEditor({...editor,fontSize:Math.max(8,Math.min(160,Number(e.target.value)))})}/>
+     <button aria-label="굵게" aria-pressed={editor.bold} onClick={()=>setEditor({...editor,bold:!editor.bold})} title="볼드"><Bold size={14}/></button><button aria-label="기울임" aria-pressed={editor.italic} onClick={()=>setEditor({...editor,italic:!editor.italic})} title="이탤릭"><Italic size={14}/></button><button aria-label="밑줄" aria-pressed={editor.underline} onClick={()=>setEditor({...editor,underline:!editor.underline})} title="언더라인"><Underline size={14}/></button><button aria-label="텍스트 테두리" title="텍스트 테두리" aria-pressed={editor.textOutline} onClick={()=>setEditor({...editor,textOutline:!editor.textOutline})}><Square size={14}/></button></div>
+     <textarea ref={input} aria-label="텍스트 내용" value={editor.text} onChange={e=>setEditor({...editor,text:e.target.value})} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();saveText();}if(e.key==='Escape')setEditor(null);}} style={{fontFamily:editor.fontFamily,fontWeight:editor.bold?700:400,fontStyle:editor.italic?'italic':'normal',textDecoration:editor.underline?'underline':'none',color:editor.color,WebkitTextStroke:editor.textOutline?`0.7px ${editor.color}`:undefined,WebkitTextFillColor:editor.textOutline?'transparent':undefined}}/>
+     <div><button onClick={saveText}>완료</button><button onClick={()=>setEditor(null)}>취소</button><small>Shift+Enter 줄바꿈</small></div>
+   </div>}
+ </div>;
 }
-
-type DragMode = 'none' | 'move' | 'rotate' | 'resize-tl' | 'resize-tr' | 'resize-bl' | 'resize-br';
-
-export const AnnotationCanvas: React.FC<AnnotationCanvasProps> = ({
-  slideNumber,
-  width,
-  height,
-  activeTool,
-  penColor,
-  penWidth,
-  highlighterColor,
-  highlighterWidth,
-  laserColor,
-  spotlightRadius,
-  shapeType = 'rectangle',
-  shapeFill = false,
-  enableStylusPressure = true,
-  laserTrailEnabled = true,
-  readOnly = false,
-  onRequestSelectTool,
-  onLaserChange,
-  onSpotlightChange,
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const isDrawingRef = useRef(false);
-  const currentPointsRef = useRef<NormalizedPoint[]>([]);
-  const laserTrailRef = useRef<{ x: number; y: number; time: number }[]>([]);
-  const isLaserFiringRef = useRef(false);
-  const annotationStore = AnnotationStore.getInstance();
-
-  // Selection & Transformation states
-  const [selectedStrokeId, setSelectedStrokeId] = useState<string | null>(null);
-  const dragModeRef = useRef<DragMode>('none');
-  const dragStartPointRef = useRef<NormalizedPoint | null>(null);
-  const originalStrokeRef = useRef<AnnotationStroke | null>(null);
-
-  // In-line Text Annotation state
-  const [textEditor, setTextEditor] = useState<TextEditorState | null>(null);
-  const textInputRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // Guarantee focus into text input whenever editor opens
-  useEffect(() => {
-    if (textEditor) {
-      const timer = setTimeout(() => {
-        textInputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [textEditor]);
-
-  // Helper to get bounding box of stroke in pixel coordinates
-  const getStrokeBounds = useCallback((stroke: AnnotationStroke) => {
-    const pts = stroke.points;
-    if (pts.length === 0) return { minX: 0, maxX: 0, minY: 0, maxY: 0, cx: 0, cy: 0, w: 0, h: 0 };
-    let minX = pts[0].x * width;
-    let maxX = pts[0].x * width;
-    let minY = pts[0].y * height;
-    let maxY = pts[0].y * height;
-
-    for (let i = 1; i < pts.length; i++) {
-      const px = pts[i].x * width;
-      const py = pts[i].y * height;
-      if (px < minX) minX = px;
-      if (px > maxX) maxX = px;
-      if (py < minY) minY = py;
-      if (py > maxY) maxY = py;
-    }
-
-    if (stroke.tool === 'text') {
-      const fontSize = stroke.fontSize || 22;
-      const lines = (stroke.text || '').split('\n');
-      const maxLineLen = Math.max(...lines.map((l) => l.length), 1);
-      maxX = Math.max(maxX, minX + maxLineLen * fontSize * 0.68);
-      maxY = Math.max(maxY, minY + lines.length * fontSize * 1.35);
-    }
-
-    const padding = 6;
-    minX -= padding;
-    maxX += padding;
-    minY -= padding;
-    maxY += padding;
-
-    return {
-      minX,
-      maxX,
-      minY,
-      maxY,
-      cx: (minX + maxX) / 2,
-      cy: (minY + maxY) / 2,
-      w: maxX - minX,
-      h: maxY - minY,
-    };
-  }, [width, height]);
-
-  // Redraw all saved strokes, selection adorners, and live in-progress drawing
-  const redraw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.clearRect(0, 0, width, height);
-    const strokes = annotationStore.getStrokesForSlide(slideNumber);
-    StrokeEngine.renderStrokes(ctx, strokes, width, height);
-
-    // Render Selection Adorners (Bounding Box, 4 Corner Resize Handles, Rotation Handle)
-    if (activeTool === 'select' && selectedStrokeId) {
-      const stroke = strokes.find((s) => s.id === selectedStrokeId);
-      if (stroke) {
-        const bounds = getStrokeBounds(stroke);
-        const { minX, maxX, minY, maxY, cx, cy } = bounds;
-        const rot = stroke.rotation || 0;
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(rot);
-        ctx.translate(-cx, -cy);
-
-        // Dashed bounding rectangle
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 1.8;
-        ctx.setLineDash([5, 4]);
-        ctx.strokeRect(minX, minY, bounds.w, bounds.h);
-        ctx.setLineDash([]);
-
-        // Rotation stem and handle
-        const rotHandleY = minY - 24;
-        ctx.beginPath();
-        ctx.moveTo(cx, minY);
-        ctx.lineTo(cx, rotHandleY);
-        ctx.strokeStyle = '#3b82f6';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-
-        // Rotation knob ⭮
-        ctx.beginPath();
-        ctx.arc(cx, rotHandleY, 6, 0, Math.PI * 2);
-        ctx.fillStyle = '#10b981';
-        ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // 4 Corner resize handles
-        const handleRadius = 5;
-        const corners = [
-          { x: minX, y: minY },
-          { x: maxX, y: minY },
-          { x: minX, y: maxY },
-          { x: maxX, y: maxY },
-        ];
-
-        corners.forEach((c) => {
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, handleRadius, 0, Math.PI * 2);
-          ctx.fillStyle = '#3b82f6';
-          ctx.fill();
-          ctx.strokeStyle = '#ffffff';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        });
-
-        ctx.restore();
-      }
-    }
-
-    // If currently drawing, render live stroke or shape preview
-    if (isDrawingRef.current && currentPointsRef.current.length > 0) {
-      if (activeTool === 'pen') {
-        StrokeEngine.renderLiveStroke(
-          ctx,
-          currentPointsRef.current,
-          'pen',
-          penColor,
-          penWidth,
-          width,
-          height
-        );
-      } else if (activeTool === 'highlighter') {
-        StrokeEngine.renderLiveStroke(
-          ctx,
-          currentPointsRef.current,
-          'highlighter',
-          highlighterColor,
-          highlighterWidth,
-          width,
-          height
-        );
-      } else if (activeTool === 'shape' && currentPointsRef.current.length >= 2) {
-        StrokeEngine.renderLiveStroke(
-          ctx,
-          currentPointsRef.current,
-          'shape',
-          penColor,
-          penWidth,
-          width,
-          height,
-          shapeType,
-          shapeFill
-        );
-      }
-    }
-  }, [
-    slideNumber,
-    width,
-    height,
-    activeTool,
-    selectedStrokeId,
-    penColor,
-    penWidth,
-    highlighterColor,
-    highlighterWidth,
-    shapeType,
-    shapeFill,
-    annotationStore,
-    getStrokeBounds,
-  ]);
-
-  // Subscribe to annotationStore changes and IMMEDIATELY redraw
-  useEffect(() => {
-    const unsubscribe = annotationStore.subscribe(() => {
-      redraw();
-    });
-    return unsubscribe;
-  }, [annotationStore, redraw]);
-
-  useEffect(() => {
-    redraw();
-  }, [redraw]);
-
-  // Handle Delete / Backspace key to delete selected stroke
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && activeTool === 'select' && selectedStrokeId) {
-        // Only if not typing in text area
-        if ((e.target as HTMLElement).tagName === 'TEXTAREA' || (e.target as HTMLElement).tagName === 'INPUT') return;
-        const strokes = annotationStore.getStrokesForSlide(slideNumber);
-        const stroke = strokes.find((s) => s.id === selectedStrokeId);
-        if (stroke) {
-          annotationStore.removeStrokes(slideNumber, [stroke]);
-          setSelectedStrokeId(null);
-          redraw();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool, selectedStrokeId, slideNumber, annotationStore, redraw]);
-
-  // Pointer/Mouse coordinate calculation normalized to [0, 1]
-  const getNormalizedPoint = (
-    e: React.PointerEvent<HTMLCanvasElement> | React.MouseEvent<HTMLCanvasElement>
-  ): NormalizedPoint => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    const clientX = e.clientX - rect.left;
-    const clientY = e.clientY - rect.top;
-    const pressure = enableStylusPressure && 'pressure' in e && e.pressure > 0 ? e.pressure : 0.5;
-
-    return {
-      x: Math.max(0, Math.min(1, clientX / width)),
-      y: Math.max(0, Math.min(1, clientY / height)),
-      pressure,
-      time: Date.now(),
-    };
-  };
-
-  // Check hit test for resize/rotate handles of selected stroke
-  const checkHandleHit = (pt: NormalizedPoint, stroke: AnnotationStroke): DragMode => {
-    const px = pt.x * width;
-    const py = pt.y * height;
-    const bounds = getStrokeBounds(stroke);
-    const { minX, maxX, minY, maxY, cx, cy } = bounds;
-    const rot = stroke.rotation || 0;
-
-    // Transform click point to unrotated coordinate space
-    const cos = Math.cos(-rot);
-    const sin = Math.sin(-rot);
-    const dx = px - cx;
-    const dy = py - cy;
-    const localX = cx + dx * cos - dy * sin;
-    const localY = cy + dx * sin + dy * cos;
-
-    const hitDist = 14;
-
-    // 1. Rotation knob check
-    const rotY = minY - 24;
-    if (Math.hypot(localX - cx, localY - rotY) <= hitDist) {
-      return 'rotate';
-    }
-
-    // 2. Corner handles check
-    if (Math.hypot(localX - minX, localY - minY) <= hitDist) return 'resize-tl';
-    if (Math.hypot(localX - maxX, localY - minY) <= hitDist) return 'resize-tr';
-    if (Math.hypot(localX - minX, localY - maxY) <= hitDist) return 'resize-bl';
-    if (Math.hypot(localX - maxX, localY - maxY) <= hitDist) return 'resize-br';
-
-    // 3. Inside bounding box check (Move)
-    if (localX >= minX && localX <= maxX && localY >= minY && localY <= maxY) {
-      return 'move';
-    }
-
-    return 'none';
-  };
-
-  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    // Only capture pointer for drawing tools, NEVER for text tool so text input receives focus
-    if (activeTool !== 'text') {
-      try {
-        e.currentTarget.setPointerCapture(e.pointerId);
-      } catch {
-        // Ignored
-      }
-    }
-    const pt = getNormalizedPoint(e);
-
-    // 1. SELECT TOOL (Selection, Resize, Rotate, Move)
-    if (activeTool === 'select') {
-      const strokes = annotationStore.getStrokesForSlide(slideNumber);
-
-      // If already a stroke selected, check if clicked its handles
-      if (selectedStrokeId) {
-        const stroke = strokes.find((s) => s.id === selectedStrokeId);
-        if (stroke) {
-          const hit = checkHandleHit(pt, stroke);
-          if (hit !== 'none') {
-            dragModeRef.current = hit;
-            dragStartPointRef.current = pt;
-            originalStrokeRef.current = JSON.parse(JSON.stringify(stroke));
-            return;
-          }
-        }
-      }
-
-      // Hit-test all strokes backwards (top to bottom)
-      let found: AnnotationStroke | null = null;
-      for (let i = strokes.length - 1; i >= 0; i--) {
-        const s = strokes[i];
-        if (EraserEngine.hitTestStroke(pt, s, width, height, 16)) {
-          found = s;
-          break;
-        }
-      }
-
-      if (found) {
-        setSelectedStrokeId(found.id);
-        dragModeRef.current = 'move';
-        dragStartPointRef.current = pt;
-        originalStrokeRef.current = JSON.parse(JSON.stringify(found));
-      } else {
-        setSelectedStrokeId(null);
-      }
-      redraw();
-      return;
-    }
-
-    // 2. TEXT TOOL: Open text editor at clicked position or edit clicked text stroke
-    if (activeTool === 'text') {
-      if (textEditor && textEditor.text.trim()) {
-        handleSaveTextAnnotation(false);
-      }
-      const strokes = annotationStore.getStrokesForSlide(slideNumber);
-      const hitText = strokes
-        .slice()
-        .reverse()
-        .find((s) => s.tool === 'text' && EraserEngine.hitTestStroke(pt, s, width, height, 20));
-
-      if (hitText) {
-        const bounds = getStrokeBounds(hitText);
-        setSelectedStrokeId(hitText.id);
-        setTextEditor({
-          x: Math.max(10, Math.min(width - 470, bounds.minX)),
-          y: Math.max(10, Math.min(height - 170, bounds.minY)),
-          text: hitText.text || '',
-          strokeId: hitText.id,
-          fontSize: hitText.fontSize,
-          color: hitText.color,
-        });
-        return;
-      }
-
-      setTextEditor({
-        x: Math.max(10, Math.min(width - 470, pt.x * width)),
-        y: Math.max(10, Math.min(height - 270, pt.y * height)),
-        text: '',
-      });
-      return;
-    }
-
-    // 3. PEN & HIGHLIGHTER
-    if (activeTool === 'pen' || activeTool === 'highlighter') {
-      isDrawingRef.current = true;
-      currentPointsRef.current = [pt];
-      redraw();
-    } else if (activeTool === 'shape') {
-      isDrawingRef.current = true;
-      currentPointsRef.current = [pt, pt];
-      redraw();
-    } else if (activeTool === 'eraser') {
-      isDrawingRef.current = true;
-      const strokes = annotationStore.getStrokesForSlide(slideNumber);
-      const { removed } = EraserEngine.eraseAt(pt, strokes, width, height);
-      if (removed.length > 0) {
-        annotationStore.removeStrokes(slideNumber, removed);
-        redraw();
-      }
-    } else if (activeTool === 'laser') {
-      // REQUIREMENT: Left button pressed down -> Turn laser OFF!
-      laserTrailRef.current = [];
-      onLaserChange({
-        x: pt.x,
-        y: pt.y,
-        active: false,
-        color: laserColor,
-        trail: [],
-      });
-    } else if (activeTool === 'spotlight') {
-      onSpotlightChange({
-        x: pt.x,
-        y: pt.y,
-        active: true,
-        radius: spotlightRadius,
-      });
-    }
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const pt = getNormalizedPoint(e);
-
-    // SELECT TOOL: Rotate, Resize, Move dragging
-    if (activeTool === 'select' && dragModeRef.current !== 'none' && originalStrokeRef.current) {
-      const orig = originalStrokeRef.current;
-      const startPt = dragStartPointRef.current;
-      if (!startPt) return;
-
-      const current = annotationStore.getStrokesForSlide(slideNumber).find((s) => s.id === orig.id);
-      if (!current) return;
-
-      const bounds = getStrokeBounds(orig);
-      const { cx, cy } = bounds;
-
-      if (dragModeRef.current === 'rotate') {
-        // Calculate angle from center to current mouse position
-        const angle = Math.atan2(pt.y * height - cy, pt.x * width - cx) + Math.PI / 2;
-        const updated = { ...current, rotation: angle };
-        annotationStore.updateStroke(slideNumber, updated);
-        redraw();
-        return;
-      }
-
-      if (dragModeRef.current === 'move') {
-        const dx = pt.x - startPt.x;
-        const dy = pt.y - startPt.y;
-        const updatedPts = orig.points.map((p) => ({
-          ...p,
-          x: Math.max(0, Math.min(1, p.x + dx)),
-          y: Math.max(0, Math.min(1, p.y + dy)),
-        }));
-        const updated = { ...current, points: updatedPts };
-        annotationStore.updateStroke(slideNumber, updated);
-        redraw();
-        return;
-      }
-
-      if (dragModeRef.current.startsWith('resize-')) {
-        if (orig.tool === 'text') {
-          const origBounds = getStrokeBounds(orig);
-          const origFontSize = orig.fontSize || 22;
-          let scale = 1;
-
-          if (dragModeRef.current === 'resize-br' || dragModeRef.current === 'resize-tr') {
-            const currentW = Math.max(20, pt.x * width - origBounds.minX);
-            scale = currentW / Math.max(20, origBounds.w);
-          } else {
-            const currentW = Math.max(20, origBounds.maxX - pt.x * width);
-            scale = currentW / Math.max(20, origBounds.w);
-          }
-
-          const newFontSize = Math.max(12, Math.min(140, Math.round(origFontSize * scale)));
-          const updated = { ...current, fontSize: newFontSize };
-          annotationStore.updateStroke(slideNumber, updated);
-          redraw();
-          return;
-        }
-
-        const origP0 = orig.points[0];
-        const origP1 = orig.points[orig.points.length - 1];
-        if (!origP0 || !origP1) return;
-
-        let newP0 = { ...origP0 };
-        let newP1 = { ...origP1 };
-
-        if (dragModeRef.current === 'resize-br') {
-          newP1 = { ...newP1, x: pt.x, y: pt.y };
-        } else if (dragModeRef.current === 'resize-tl') {
-          newP0 = { ...newP0, x: pt.x, y: pt.y };
-        } else if (dragModeRef.current === 'resize-tr') {
-          newP0 = { ...newP0, y: pt.y };
-          newP1 = { ...newP1, x: pt.x };
-        } else if (dragModeRef.current === 'resize-bl') {
-          newP0 = { ...newP0, x: pt.x };
-          newP1 = { ...newP1, y: pt.y };
-        }
-
-        const updated = { ...current, points: [newP0, newP1] };
-        annotationStore.updateStroke(slideNumber, updated);
-        redraw();
-        return;
-      }
-    }
-
-    // LASER POINTER: Default ON when moving; Turn OFF when left mouse button is pressed
-    if (activeTool === 'laser') {
-      const isLeftPressed = (e.buttons & 1) === 1;
-      if (isLeftPressed) {
-        // Left button held down -> Turn laser OFF!
-        laserTrailRef.current = [];
-        onLaserChange({
-          x: pt.x,
-          y: pt.y,
-          active: false,
-          color: laserColor,
-          trail: [],
-        });
-      } else {
-        // Not clicking -> Laser is ON with glowing trail!
-        const now = Date.now();
-        const recent = laserTrailEnabled
-          ? laserTrailRef.current.filter((p) => now - p.time < 750)
-          : [];
-        laserTrailRef.current = laserTrailEnabled ? [...recent, { x: pt.x, y: pt.y, time: now }] : [];
-        onLaserChange({
-          x: pt.x,
-          y: pt.y,
-          active: true,
-          color: laserColor,
-          trail: laserTrailEnabled ? [...laserTrailRef.current] : [],
-        });
-      }
-      return;
-    }
-
-    if (activeTool === 'spotlight') {
-      onSpotlightChange({
-        x: pt.x,
-        y: pt.y,
-        active: true,
-        radius: spotlightRadius,
-      });
-      return;
-    }
-
-    if (!isDrawingRef.current) return;
-
-    if (activeTool === 'pen' || activeTool === 'highlighter') {
-      currentPointsRef.current.push(pt);
-      redraw();
-    } else if (activeTool === 'shape') {
-      const startPt = currentPointsRef.current[0];
-      if (startPt) {
-        let endPt = pt;
-        // Shift key constraint for 1:1 aspect ratio
-        if (e.shiftKey && (shapeType === 'rectangle' || shapeType === 'circle' || shapeType === 'star')) {
-          const dx = (pt.x - startPt.x) * width;
-          const dy = (pt.y - startPt.y) * height;
-          const maxDim = Math.max(Math.abs(dx), Math.abs(dy));
-          const signX = Math.sign(dx) || 1;
-          const signY = Math.sign(dy) || 1;
-          endPt = {
-            x: Math.max(0, Math.min(1, startPt.x + (signX * maxDim) / width)),
-            y: Math.max(0, Math.min(1, startPt.y + (signY * maxDim) / height)),
-            time: Date.now(),
-          };
-        }
-        currentPointsRef.current = [startPt, endPt];
-        redraw();
-      }
-    } else if (activeTool === 'eraser') {
-      const strokes = annotationStore.getStrokesForSlide(slideNumber);
-      const { removed } = EraserEngine.eraseAt(pt, strokes, width, height);
-      if (removed.length > 0) {
-        annotationStore.removeStrokes(slideNumber, removed);
-        redraw();
-      }
-    }
-  };
-
-  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    // Reset selection dragging
-    if (activeTool === 'select') {
-      dragModeRef.current = 'none';
-      dragStartPointRef.current = null;
-      originalStrokeRef.current = null;
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // Ignored
-      }
-      return;
-    }
-
-    // LASER POINTER: Button released -> Turn laser back ON!
-    if (activeTool === 'laser') {
-      const pt = getNormalizedPoint(e);
-      const now = Date.now();
-      laserTrailRef.current = laserTrailEnabled ? [{ x: pt.x, y: pt.y, time: now }] : [];
-      onLaserChange({
-        x: pt.x,
-        y: pt.y,
-        active: true,
-        color: laserColor,
-        trail: laserTrailEnabled ? [...laserTrailRef.current] : [],
-      });
-      try {
-        e.currentTarget.releasePointerCapture(e.pointerId);
-      } catch {
-        // Ignored
-      }
-      return;
-    }
-
-    if (!isDrawingRef.current) return;
-    isDrawingRef.current = false;
-
-    if (activeTool === 'pen' || activeTool === 'highlighter') {
-      const points = currentPointsRef.current;
-      if (points.length > 0) {
-        const stroke: AnnotationStroke = {
-          id: `stroke_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          tool: activeTool,
-          color: activeTool === 'pen' ? penColor : highlighterColor,
-          width: activeTool === 'pen' ? penWidth : highlighterWidth,
-          opacity: 1.0,
-          points,
-          slideNumber,
-          createdAt: Date.now(),
-        };
-        annotationStore.addStroke(stroke);
-      }
-      currentPointsRef.current = [];
-      redraw();
-    } else if (activeTool === 'shape') {
-      const points = currentPointsRef.current;
-      if (points.length >= 2) {
-        const distPx = Math.hypot(
-          (points[1].x - points[0].x) * width,
-          (points[1].y - points[0].y) * height
-        );
-        if (distPx >= 4) {
-          const stroke: AnnotationStroke = {
-            id: `shape_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            tool: 'shape',
-            shapeType,
-            shapeFill,
-            color: penColor,
-            width: penWidth,
-            opacity: 1.0,
-            points,
-            rotation: 0,
-            slideNumber,
-            createdAt: Date.now(),
-          };
-          annotationStore.addStroke(stroke);
-        }
-      }
-      currentPointsRef.current = [];
-      redraw();
-    }
-
-    try {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {
-      // Ignored
-    }
-  };
-
-  const handlePointerLeave = () => {
-    if (activeTool === 'laser') {
-      isLaserFiringRef.current = false;
-      laserTrailRef.current = [];
-      onLaserChange({
-        x: 0.5,
-        y: 0.5,
-        active: false,
-        color: laserColor,
-        trail: [],
-      });
-    } else if (activeTool === 'spotlight') {
-      onSpotlightChange({
-        x: 0.5,
-        y: 0.5,
-        active: false,
-        radius: spotlightRadius,
-      });
-    }
-
-    if (isDrawingRef.current) {
-      handlePointerUp({ currentTarget: canvasRef.current } as unknown as React.PointerEvent<HTMLCanvasElement>);
-    }
-  };
-
-  // Complete inline text annotation (create new or update existing text stroke)
-  const handleSaveTextAnnotation = (switchToSelect = true) => {
-    if (textEditor && textEditor.text.trim()) {
-      if (textEditor.strokeId) {
-        // Update existing text stroke
-        const current = annotationStore
-          .getStrokesForSlide(slideNumber)
-          .find((s) => s.id === textEditor.strokeId);
-        if (current) {
-          const updated: AnnotationStroke = {
-            ...current,
-            text: textEditor.text.trim(),
-            color: textEditor.color || penColor,
-            fontSize: textEditor.fontSize || current.fontSize || Math.max(18, penWidth * 5),
-          };
-          annotationStore.updateStroke(slideNumber, updated);
-          setSelectedStrokeId(current.id);
-        }
-      } else {
-        // Create new text stroke
-        const normPt: NormalizedPoint = {
-          x: textEditor.x / width,
-          y: textEditor.y / height,
-          time: Date.now(),
-        };
-
-        const newId = `text_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        const stroke: AnnotationStroke = {
-          id: newId,
-          tool: 'text',
-          color: penColor,
-          width: penWidth,
-          opacity: 1.0,
-          points: [normPt],
-          text: textEditor.text.trim(),
-          fontSize: Math.max(18, penWidth * 5),
-          fontFamily: 'system-ui, sans-serif',
-          rotation: 0,
-          slideNumber,
-          createdAt: Date.now(),
-        };
-        annotationStore.addStroke(stroke);
-        setSelectedStrokeId(newId);
-      }
-    }
-    setTextEditor(null);
-    if (switchToSelect) {
-      onRequestSelectTool?.();
-    }
-    redraw();
-  };
-
-  // Cursor style based on tool
-  const getCursorStyle = (): string => {
-    switch (activeTool) {
-      case 'select':
-        return 'default';
-      case 'text':
-        return 'text';
-      case 'pen':
-      case 'shape':
-        return 'crosshair';
-      case 'highlighter':
-        return 'cell';
-      case 'eraser':
-        return 'pointer';
-      case 'laser':
-        return 'crosshair';
-      case 'spotlight':
-        return 'none';
-      default:
-        return 'default';
-    }
-  };
-
-  // Double-click to edit text object directly
-  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const pt = getNormalizedPoint(e);
-    const strokes = annotationStore.getStrokesForSlide(slideNumber);
-    const hitText = strokes
-      .slice()
-      .reverse()
-      .find((s) => s.tool === 'text' && EraserEngine.hitTestStroke(pt, s, width, height, 20));
-
-    if (hitText) {
-      const bounds = getStrokeBounds(hitText);
-      setSelectedStrokeId(hitText.id);
-      setTextEditor({
-        x: Math.max(10, Math.min(width - 470, bounds.minX)),
-        y: Math.max(10, Math.min(height - 170, bounds.minY)),
-        text: hitText.text || '',
-        strokeId: hitText.id,
-        fontSize: hitText.fontSize,
-        color: hitText.color,
-      });
-    }
-  };
-
-  const currentStrokes = annotationStore.getStrokesForSlide(slideNumber);
-  const selectedStroke = selectedStrokeId
-    ? currentStrokes.find((s) => s.id === selectedStrokeId) || null
-    : null;
-  const selectedBounds = selectedStroke ? getStrokeBounds(selectedStroke) : null;
-  const selectedActionTop = selectedBounds
-    ? selectedBounds.minY >= 50
-      ? selectedBounds.minY - 46
-      : selectedBounds.maxY + 10
-    : 6;
-
-  return (
-    <div style={{ position: 'absolute', top: 0, left: 0, width: `${width}px`, height: `${height}px` }}>
-      <canvas
-        ref={canvasRef}
-        width={width}
-        height={height}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerLeave}
-        onPointerCancel={handlePointerLeave}
-        onDoubleClick={handleDoubleClick}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: `${width}px`,
-          height: `${height}px`,
-          cursor: getCursorStyle(),
-          pointerEvents: readOnly ? 'none' : 'auto',
-          touchAction: 'none',
-          zIndex: 10,
-        }}
-      />
-
-      {/* Floating Action Bar for Selected Text or Shape Object */}
-      {activeTool === 'select' && selectedStroke && selectedBounds && !textEditor && (
-        <div
-          style={{
-            position: 'absolute',
-            top: `${selectedActionTop}px`,
-            left: `${selectedBounds.cx}px`,
-            transform: 'translateX(-50%)',
-            zIndex: 45,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            background: 'rgba(15, 23, 42, 0.94)',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: '6px',
-            padding: '3px 6px',
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
-            backdropFilter: 'blur(12px)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {selectedStroke.tool === 'text' && (
-            <button
-              type="button"
-              onClick={() => {
-                setTextEditor({
-                  x: Math.max(10, Math.min(width - 470, selectedBounds.minX)),
-                  y: Math.max(10, Math.min(height - 170, selectedBounds.minY)),
-                  text: selectedStroke.text || '',
-                  strokeId: selectedStroke.id,
-                  fontSize: selectedStroke.fontSize,
-                  color: selectedStroke.color,
-                });
-              }}
-              title="텍스트 문장 내용 수정 (더블 클릭으로도 가능)"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                background: '#2563eb',
-                border: 'none',
-                borderRadius: '4px',
-                color: '#ffffff',
-                padding: '4px 9px',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <Edit3 size={13} />
-              <span>문장 수정</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => {
-              annotationStore.removeStrokes(slideNumber, [selectedStroke]);
-              setSelectedStrokeId(null);
-              redraw();
-            }}
-            title="객체 삭제 (Delete)"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              background: 'rgba(239, 68, 68, 0.25)',
-              border: '1px solid rgba(239, 68, 68, 0.5)',
-              borderRadius: '4px',
-              color: '#fca5a5',
-              padding: '4px 7px',
-              fontSize: '11px',
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            <Trash2 size={13} />
-            <span>삭제</span>
-          </button>
-        </div>
-      )}
-
-      {/* Inline text annotation input using the system font */}
-      {textEditor && (
-        <div
-          style={{
-            position: 'absolute',
-            top: `${textEditor.y}px`,
-            left: `${textEditor.x}px`,
-            zIndex: 100,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '6px',
-            width: 'min(460px, calc(100% - 20px))',
-            background: 'rgba(248, 250, 252, 0.98)',
-            border: `1.5px solid ${textEditor.color || penColor}`,
-            borderRadius: '8px',
-            padding: '8px 10px',
-            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.65), 0 0 10px rgba(59, 130, 246, 0.3)',
-            backdropFilter: 'blur(16px)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 700, color: '#475569', letterSpacing: '0.4px' }}>
-              기본 글꼴 텍스트
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <button
-                type="button"
-                onClick={() => handleSaveTextAnnotation()}
-                title="완료 (Enter)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                  background: '#2563eb',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#ffffff',
-                  padding: '3px 8px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                <Check size={13} />
-                <span>완료</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTextEditor(null)}
-                title="취소 (Esc)"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#cbd5e1',
-                  padding: '3px 6px',
-                  cursor: 'pointer',
-                }}
-              >
-                <X size={13} />
-              </button>
-            </div>
-          </div>
-
-          <textarea
-            ref={textInputRef}
-            rows={2}
-            value={textEditor.text}
-            placeholder="텍스트 입력 (Enter 완료 · Shift+Enter 줄바꿈)"
-            onChange={(e) => setTextEditor({ ...textEditor, text: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSaveTextAnnotation();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                setTextEditor(null);
-              }
-            }}
-            style={{
-              fontFamily: 'system-ui, sans-serif',
-              fontSize: '13px',
-              fontWeight: 400,
-              color: textEditor.color || penColor,
-              background: '#ffffff',
-              border: '1px solid #cbd5e1',
-              borderRadius: '5px',
-              padding: '8px 10px',
-              outline: 'none',
-              width: '100%',
-              minHeight: '66px',
-              boxSizing: 'border-box',
-              resize: 'both',
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-};

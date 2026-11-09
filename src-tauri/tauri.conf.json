@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "CrowShow",
-  "version": "1.2.0",
+  "version": "1.5.0",
   "identifier": "lab.crowscience.crowshow",
   "build": {
     "frontendDist": "../dist",
@@ -29,7 +29,10 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "useLocalToolsDir": true,
+    "targets": [
+      "nsis"
+    ],
     "publisher": "Crow Science Lab",
     "copyright": "Copyright © 2026 Crow Science Lab",
     "category": "Education",
@@ -40,7 +43,9 @@
     },
     "fileAssociations": [
       {
-        "ext": ["pdf"],
+        "ext": [
+          "pdf"
+        ],
         "name": "PDF document",
         "description": "Portable Document Format",
         "role": "Viewer",

@@ -928,13 +928,14 @@ button {
   justify-content: center;
   overflow: hidden;
   border-radius: 4px;
-  background: #ffffff;
+  background: transparent;
 }
 
 .thumbnail-canvas {
   max-width: 100%;
-  width: 100% !important;
-  height: 100% !important;
+  max-height: 140px;
+  width: auto !important;
+  height: auto !important;
   object-fit: contain;
   display: block;
 }

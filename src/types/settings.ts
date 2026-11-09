@@ -1,6 +1,6 @@
 import type { TransitionType } from './presentation';
 
-export type AppTheme = 'light' | 'dark' | 'system';
+export type AppTheme = 'light' | 'dark' | 'pink' | 'blue';
 export type TransitionSound = 'none' | 'soft' | 'paper' | 'click' | 'chime';
 
 export interface AppSettings {
@@ -8,14 +8,14 @@ export interface AppSettings {
   defaultTransition: TransitionType;
   transitionDurationMs: number;
   laserColor: string;
-  laserTrailEnabled: boolean;
+  laserSize:number; laserTrailDurationMs:number;
   transitionSound: TransitionSound;
-  spotlightRadius: number;
   penColor: string;
   penWidth: number;
   highlighterColor: string;
   highlighterWidth: number;
   enableStylusPressure: boolean;
+  enableTilt:boolean;
   autoHideToolbarDelayMs: number;
   preloadSlideDistance: number; // e.g. 2 means load current - 2 to current + 2
   autoPlayIntervalSeconds: number;
@@ -27,14 +27,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultTransition: 'fade',
   transitionDurationMs: 750,
   laserColor: '#ef4444',
-  laserTrailEnabled: true,
+  laserSize:4, laserTrailDurationMs:700,
   transitionSound: 'soft',
-  spotlightRadius: 180,
   penColor: '#ef4444',
   penWidth: 4,
   highlighterColor: '#facc15',
   highlighterWidth: 20,
   enableStylusPressure: true,
+  enableTilt:true,
   autoHideToolbarDelayMs: 2500,
   preloadSlideDistance: 2,
   autoPlayIntervalSeconds: 5,

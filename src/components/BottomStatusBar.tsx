@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 interface BottomStatusBarProps {
+  presentation?:boolean;onExitPresentation?:()=>void;
   documentName: string;
   tools: React.ReactNode;
   currentSlide: number;
@@ -33,7 +34,7 @@ interface BottomStatusBarProps {
 }
 
 export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
-  documentName,
+  presentation=false,onExitPresentation,documentName,
   tools,
   currentSlide,
   totalSlides,
@@ -122,7 +123,7 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
       {/* Right: Zoom & Fullscreen */}
       <div className="status-section right">
         <div className="zoom-controls">
-          <select className="pdf-fit-select" aria-label="PDF 화면 맞춤" value={zoomMode}
+          <select className="pdf-fit-select" aria-label="화면 맞춤" value={zoomMode}
             onChange={(event) => {
               if (event.target.value === 'fit-page') onFitPage();
               else if (event.target.value === 'fit-width') onFitWidth();
@@ -144,7 +145,7 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
           <button
             className="zoom-percentage-btn"
             onClick={onZoomReset}
-            title="PDF 배율 — 클릭하면 실제 크기 100%"
+            title="배율 — 클릭하면 100%"
           >
             {Math.round(zoomFactor * 100)}%
           </button>
@@ -161,7 +162,7 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
           <button
             className="icon-btn-xs"
             onClick={onFitPage}
-            title="페이지 전체 맞춤 (0)"
+            title="페이지 전체 맞춤"
           >
             <Scan size={14} />
           </button>
@@ -171,11 +172,11 @@ export const BottomStatusBar: React.FC<BottomStatusBarProps> = ({
 
         <button
           className="btn-fullscreen-trigger"
-          onClick={onStartPresentation}
-          title="전체화면 슬라이드 쇼 (F5)"
+          onClick={presentation?onExitPresentation:onStartPresentation}
+          title={presentation?'슬라이드쇼 종료 (Esc)':'전체화면 슬라이드 쇼 (F5)'}
         >
           <Maximize2 size={15} />
-          <span>전체화면</span>
+          <span>{presentation?'종료':'전체화면'}</span>
         </button>
       </div>
     </footer>

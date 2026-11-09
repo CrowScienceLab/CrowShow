@@ -5,6 +5,12 @@ export const PDF_TO_CSS = 96 / 72;
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 export const PAGE_PADDING = 24;
+export const ZOOM_STEPS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
+export function stepZoom(current: number, direction: number): number {
+  const percent = Math.round(current * 100);
+  return direction > 0 ? ZOOM_STEPS.find(value => Math.round(value * 100) > percent) ?? MAX_ZOOM
+    : [...ZOOM_STEPS].reverse().find(value => Math.round(value * 100) < percent) ?? MIN_ZOOM;
+}
 
 export function getPdfLayout(pageWidth: number, pageHeight: number,
   viewportWidth: number, viewportHeight: number, mode: PdfZoomMode, zoom: number) {
@@ -12,9 +18,11 @@ export function getPdfLayout(pageWidth: number, pageHeight: number,
   const nativeHeight = pageHeight * PDF_TO_CSS;
   const availableWidth = Math.max(100, viewportWidth - PAGE_PADDING);
   const availableHeight = Math.max(100, viewportHeight - PAGE_PADDING);
-  const scale = mode === 'fit-page' ? Math.min(availableWidth / nativeWidth, availableHeight / nativeHeight)
-    : mode === 'fit-width' ? availableWidth / nativeWidth : Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
-  return { width: Math.round(nativeWidth * scale), height: Math.round(nativeHeight * scale), zoom: scale };
+  const widthScale=availableWidth/nativeWidth;
+  const relativeZoom=mode==='fit-page'?Math.min(1,availableHeight/(nativeHeight*widthScale))
+    :mode==='fit-width'?1:Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,zoom));
+  const scale=widthScale*relativeZoom;
+  return {width:Math.round(nativeWidth*scale),height:Math.round(nativeHeight*scale),zoom:relativeZoom};
 }
 
 /** Keep the same document point under the cursor/viewport centre after zooming. */

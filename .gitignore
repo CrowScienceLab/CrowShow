@@ -19,6 +19,9 @@ src-tauri/target
 release
 public/pdfjs
 tmp
+# Local QA notebooks and exported document fixtures are not release source.
+docs/maintenance/**/*.crownotebook
+docs/maintenance/**/*.pdf
 *.pfx
 *.p12
 *.key

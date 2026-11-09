@@ -619,7 +619,7 @@ checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
 name = "crowshow"
-version = "1.2.0"
+version = "1.5.0"
 dependencies = [
  "log",
  "reqwest 0.12.28",
@@ -630,6 +630,8 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-log",
  "tauri-plugin-single-instance",
+ "windows",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

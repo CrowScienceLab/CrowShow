@@ -42,6 +42,8 @@ export class SoundEngine {
     return this.ctx;
   }
 
+  public unlock():void {this.initContext();}
+
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     try {
@@ -92,7 +94,9 @@ export class SoundEngine {
    * Slide transition sound (soft crisp slide turn / swoosh)
    */
   public playSlideSwitch(style: TransitionSound = 'soft'): void {
-    if (!this.enabled || style === 'none') return;
+    if(style==='none')return;
+    // The selected transition sound is authoritative, including old mute migrations.
+    if(!this.enabled)this.setEnabled(true);
     const ctx = this.initContext();
     if (!ctx) return;
 

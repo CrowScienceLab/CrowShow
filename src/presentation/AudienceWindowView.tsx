@@ -25,14 +25,18 @@ export const AudienceWindowView: React.FC = () => {
   const [size, setSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
   useEffect(() => {
+    let generation=0;
     const onResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
     const onMessage = async (event: MessageEvent<AudienceMessage>) => {
+      if(event.origin!==window.location.origin||event.source!==window.opener)return;
       const message = event.data;
       if (!message || message.source !== 'crowshow-presenter') return;
       if (message.type === 'initialize' && message.bytes && message.fileName) {
+        const request=++generation;
         const loader = PdfLoader.getInstance();
         const info = await loader.loadFromBuffer(message.bytes, message.fileName, message.bytes.byteLength);
-        AnnotationStore.getInstance().setDocument(info.id);
+        if(request!==generation)return;
+        await AnnotationStore.getInstance().setDocument(info.id);
         setPdfDoc(loader.getPdfDocument());
         setAspectRatios(info.pageAspectRatios);
       }
@@ -66,7 +70,6 @@ export const AudienceWindowView: React.FC = () => {
           highlighterColor="#facc15"
           highlighterWidth={20}
           laserColor="#ef4444"
-          spotlightRadius={180}
           screenCurtain="none"
           transitionConfig={{ type: transitionType, durationMs: 600, easing: 'ease' }}
           readOnly

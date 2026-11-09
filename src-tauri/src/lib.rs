@@ -1,3 +1,5 @@
+mod notebook_files;
+mod store_updates;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
@@ -331,6 +333,24 @@ fn open_pdf_defaults() -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let parsed = reqwest::Url::parse(&url).map_err(|error| error.to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+    {
+        return Err("HTTP(S) links only".into());
+    }
+    Command::new("rundll32.exe")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(parsed.as_str())
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let initial_pdf = find_pdf_path(std::env::args().skip(1));
@@ -361,8 +381,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_initial_pdf,
             check_for_updates,
+            store_updates::store_package_update,
             download_and_install_update,
-            open_pdf_defaults
+            open_pdf_defaults,
+            open_external_url,
+            notebook_files::notebook_storage_status,
+            notebook_files::choose_notebook_drive_folder,
+            notebook_files::save_notebook_file,
+            notebook_files::open_notebook_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running CrowShow");

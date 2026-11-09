@@ -1,0 +1,2 @@
+{"pointCount":500000,"editMs":0,"wholeDocumentClones":0,"synchronousWrites":0,"storageFailed":false}
+PASS large ink edit/undo/redo avoids full clones and synchronous storage

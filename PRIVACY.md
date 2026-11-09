@@ -1,6 +1,6 @@
 # CrowShow 개인정보 처리방침 / Privacy Policy
 
-시행일 / Effective date: 2026-10-04
+시행일 / Effective date: 2026-11-10
 
 CrowShow는 PDF를 열고 발표·필기하는 PC 애플리케이션입니다. CrowScienceLab은 앱을 통해 사용자의 PDF,
 필기, 발표 메모 또는 최근 파일 기록을 개발자 서버에 수집하거나 전송하지 않습니다.
@@ -24,6 +24,8 @@ GitHub에 전달될 수 있습니다. 문서·필기·메모 내용은 이 요�
 Microsoft Store, Windows 및 WebView2 Runtime의 처리에는 Microsoft의 관련 정책이 적용됩니다.
 앱 자체에는 광고, 원격 분석, 사용자 계정 등록 또는 개발자 클라우드 동기화 기능이 없습니다.
 
+사용자가 PC용 Google Drive 동기화 폴더를 선택해 노트 파일을 저장하면 해당 폴더의 파일은 PC용 Drive 설정에 따라 Google로 동기화될 수 있습니다. CrowShow는 Google 계정이나 OAuth 토큰을 저장하지 않으며 Google 서버에 직접 파일을 전송하지 않습니다. 파일 백업은 앱 설정 폴더 또는 선택한 위치에 남을 수 있습니다.
+
 ## 문의
 
 지원: https://github.com/CrowScienceLab/CrowShow/issues
@@ -45,3 +47,5 @@ document or annotation content. Microsoft's policies apply to Store, Windows, an
 CrowShow includes no advertising, developer telemetry, account registration, or developer cloud sync.
 Support: https://github.com/CrowScienceLab/CrowShow/issues. Do not attach private documents or personal
 information to public issues.
+
+When you choose a folder synchronized by Google Drive for desktop, files saved there may be synchronized to Google under your Drive settings. CrowShow does not store Google credentials or OAuth tokens and does not directly upload files to Google servers.

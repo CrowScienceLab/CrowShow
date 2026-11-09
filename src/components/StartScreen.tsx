@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Clock, FileUp, FolderOpen, Maximize2, MonitorPlay, Play, Settings } from 'lucide-react';
+import { Clock, FileUp, FolderOpen, Maximize2, MonitorPlay, Play, CircleHelp } from 'lucide-react';
 import type { RecentPdfDocument } from '../types/pdf';
 
-interface StartScreenProps { onOpenFile: (file: File) => void; recentFiles: RecentPdfDocument[]; onOpenRecent: (id: string) => void; }
+interface StartScreenProps { onOpenHelp:()=>void;onOpenFile: (file: File) => void; recentFiles: RecentPdfDocument[]; onOpenRecent: (id: string) => void; }
 
-export const StartScreen: React.FC<StartScreenProps> = ({ onOpenFile, recentFiles, onOpenRecent }) => {
+export const StartScreen: React.FC<StartScreenProps> = ({ onOpenHelp,onOpenFile, recentFiles, onOpenRecent }) => {
   const [isDragging, setIsDragging] = useState(false);
   const accept = (file?: File) => {
     if (!file) return;
@@ -13,8 +13,8 @@ export const StartScreen: React.FC<StartScreenProps> = ({ onOpenFile, recentFile
   };
   return <div className="start-player-shell" onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }} onDrop={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); accept(e.dataTransfer.files?.[0]); }}>
     <div className="start-command-preview">
-      <div className="command-brand"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.2</small></div>
-      <span className="preview-command"><FolderOpen size={16} /> 열기</span><span className="preview-command primary"><Play size={15} /> 슬라이드쇼</span><span className="preview-command"><MonitorPlay size={16} /> 발표자</span><span className="preview-command muted">전환: 페이드</span><span className="preview-spacer" /><Settings size={18} />
+      <div className="command-brand"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v1.5</small></div>
+      <span className="preview-command"><FolderOpen size={16} /> 열기</span><span className="preview-command primary"><Play size={15} /> 슬라이드쇼</span><span className="preview-command"><MonitorPlay size={16} /> 발표자</span><span className="preview-command muted">전환: 페이드</span><span className="preview-spacer" /><button className="command-icon" onClick={onOpenHelp} title="도움말 (F1)" aria-label="도움말 (F1)"><CircleHelp size={18}/></button>
     </div>
     <div className="empty-slide-workspace"><div className="empty-slide-paper"><img src="./yellow-billed-crow.png" alt="" /><span>PDF 프레젠테이션 영역</span></div></div>
     <div className="start-status-preview"><span>슬라이드 0 / 0</span><span>PDF 파일을 열어 시작하세요</span><span>00:00</span><span className="preview-tool-dots">↖　✎　▱　T　◇　⌕</span><span>100%</span><Maximize2 size={15} /></div>

@@ -30,7 +30,9 @@ try {
         }
     } finally { $taskIcon.Dispose() }
     New-Item -ItemType Directory -Force -Path (Join-Path $taskRoot 'release') | Out-Null
-    $taskOutput = Join-Path $taskRoot 'release\CrowShow-v1.2-Store-x64.msix'
+    $taskVersion = (Get-Content -LiteralPath 'src-tauri\tauri.conf.json' -Raw | ConvertFrom-Json).version
+    $taskDisplayVersion = $taskVersion -replace '\.0$',''
+    $taskOutput = Join-Path $taskRoot "release\CrowShow-v$taskDisplayVersion-Store-x64.msix"
     if (Test-Path -LiteralPath $taskOutput) { throw 'Archive the previous Store package before rebuilding.' }
     & $taskMakeAppx pack /v /h SHA256 /d $taskStage /p $taskOutput
     if ($LASTEXITCODE -ne 0) { throw 'MakeAppx validation failed.' }

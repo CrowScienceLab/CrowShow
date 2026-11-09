@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PdfDocumentInfo, RecentPdfDocument } from './types/pdf';
-import type { ToolType, ShapeType, CrowShowProjectData } from './types/annotation';
+import type { ToolType, ShapeType } from './types/annotation';
 import type { ViewMode, ScreenCurtain, TransitionType, SlideTransitionConfig } from './types/presentation';
 import type { AppSettings } from './types/settings';
+import { loadNotebook, saveNotebook } from './utils/notebookStorage';
+import { flushInk } from './utils/inkStorage';
+import { HelpDialog } from './components/HelpDialog';
 import { DEFAULT_SETTINGS } from './types/settings';
 
 import { PdfLoader } from './pdf/pdfLoader';
 import { PdfCache } from './pdf/pdfCache';
-import { MIN_ZOOM, MAX_ZOOM, type PdfZoomMode } from './pdf/pdfViewport';
+import { MIN_ZOOM, MAX_ZOOM, stepZoom, type PdfZoomMode } from './pdf/pdfViewport';
 import { AnnotationStore } from './annotations/annotationStore';
 import { PresentationTimer } from './presentation/presentationTimer';
 import { KeyboardShortcutManager, type ShortcutAction } from './presentation/keyboardShortcutManager';
@@ -29,7 +32,16 @@ import { HeaderToolbar } from './components/HeaderToolbar';
 import { SlideThumbnailList } from './components/SlideThumbnailList';
 import { BottomStatusBar } from './components/BottomStatusBar';
 import { ToolDock } from './components/ToolDock';
-import { FloatingToolbar } from './components/FloatingToolbar';
+import { NotebookPanel, type NotebookHandle, type NoteStatus } from './components/NotebookPanel';
+import { PrintDialog } from './components/PrintDialog';
+import type { NotebookData } from './types/notebook';
+import type { SlideAnnotationMap, EraserMode } from './types/annotation';
+import { editPdf, remapAnnotations, remapPages, type PageEdit } from './utils/pdfEditing';
+import { downloadBytes, encodePdf, decodePdf } from './utils/download';
+import type { ToolDockProps } from './components/ToolDock';
+import { readProject } from './utils/projectValidation';
+interface DocumentSnapshot {bytes:Uint8Array;annotations:SlideAnnotationMap;notes:Record<number,string>;transitions:Record<number,TransitionType>;slide:number;notebook:NotebookData|null;}
+
 import { TransitionContainer } from './transitions/transitionContainer';
 import { SlideNavButtons } from './components/SlideNavButtons';
 import { PresenterModeView } from './presentation/presenterModeView';
@@ -38,22 +50,20 @@ import { SettingsModal } from './components/SettingsModal';
 import { ConfirmModal } from './components/ConfirmModal';
 
 import './styles/fluent.css';
+import './styles/v13.css';
+import './styles/workspace.css';
+import './styles/v15.css';
 
 export const App: React.FC = () => {
   // --- SOUND ENGINE ---
   const soundEngine = SoundEngine.getInstance();
-  const [isSoundEnabled, setIsSoundEnabled] = useState<boolean>(() => soundEngine.isEnabled());
-
-  const handleToggleSound = useCallback(() => {
-    const newState = soundEngine.toggle();
-    setIsSoundEnabled(newState);
-  }, [soundEngine]);
-
   // --- SETTINGS & THEME ---
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const saved = localStorage.getItem('crowshow_settings');
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      const value=saved?{...DEFAULT_SETTINGS,...JSON.parse(saved)}:{...DEFAULT_SETTINGS};
+      if(!['dark','light','pink','blue'].includes(value.theme))value.theme='dark';
+      return value;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -62,7 +72,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const applyTheme = () => {
-      const resolvedTheme = settings.theme === 'system' ? (media.matches ? 'dark' : 'light') : settings.theme;
+      const resolvedTheme = ['dark','light','pink','blue'].includes(settings.theme) ? settings.theme : 'dark';
       document.documentElement.setAttribute('data-theme', resolvedTheme);
     };
     applyTheme();
@@ -93,12 +103,18 @@ export const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('normal');
   const [screenCurtain, setScreenCurtain] = useState<ScreenCurtain>('none');
   const [zoomFactor, setZoomFactor] = useState<number>(1.0);
-  const [zoomMode, setZoomMode] = useState<PdfZoomMode>('fit-page');
   const [displayZoom, setDisplayZoom] = useState(1);
+  const [zoomMode, setZoomModeState] = useState<PdfZoomMode>('fit-width');
+  const zoomModeRef=useRef<PdfZoomMode>('fit-width');
+  const displayZoomRef=useRef(1);
+  const setZoomMode=useCallback((mode:PdfZoomMode)=>{zoomModeRef.current=mode;setZoomModeState(mode);},[]);
+  const resolveDisplayZoom=useCallback((zoom:number)=>{if(zoomModeRef.current!=='custom'){displayZoomRef.current=zoom;setDisplayZoom(zoom);}},[]);
   const changeZoom = useCallback((zoom: number) => {
     setZoomMode('custom');
-    setZoomFactor(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)));
-  }, []);
+    const next=Math.max(MIN_ZOOM,Math.min(MAX_ZOOM,zoom));
+    displayZoomRef.current=next;setDisplayZoom(next);setZoomFactor(next);
+  }, [setZoomMode]);
+  const stepDisplayZoom=useCallback((direction:number)=>changeZoom(stepZoom(displayZoomRef.current,direction)),[changeZoom]);
   const [slideTransitions, setSlideTransitions] = useState<Record<number, TransitionType>>({});
   const [speakerNotes, setSpeakerNotes] = useState<Record<number, string>>({});
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
@@ -116,21 +132,46 @@ export const App: React.FC = () => {
   const [highlighterWidth, setHighlighterWidth] = useState<number>(settings.highlighterWidth);
   const [laserColor, setLaserColor] = useState<string>(settings.laserColor);
   const [shapeType, setShapeType] = useState<ShapeType>('rectangle');
+  const [shapeWidth,setShapeWidth]=useState(3),[shapeBorder,setShapeBorder]=useState(true),[shapeFillColor,setShapeFillColor]=useState('#facc15'),[shapeOpacity,setShapeOpacity]=useState(1);
   const [shapeFill, setShapeFill] = useState<boolean>(false);
 
+  const [eraserMode,setEraserMode]=useState<EraserMode>('object');
+  const [notebook,setNotebook]=useState<NotebookData|null>(null);
+  const [notesOpen,setNotesOpen]=useState(false);
+  const [noteStore]=useState(()=>new AnnotationStore(false));
+  const [printOpen,setPrintOpen]=useState(false);
+  const [noteStorageError,setNoteStorageError]=useState(false);
+  const notebookRef=useRef<NotebookHandle>(null);
+  const originalDocumentRef=useRef<DocumentSnapshot|null>(null);
+  const [noteStatus,setNoteStatus]=useState<NoteStatus>({page:1,total:1,zoom:1});
+  const [eraserWidth,setEraserWidth]=useState(28);
+  const [editBusy,setEditBusy]=useState(false);
+  const editLock=useRef(false);
+  const [docUndo,setDocUndo]=useState<DocumentSnapshot[]>([]),[docRedo,setDocRedo]=useState<DocumentSnapshot[]>([]);
+  const insertInputRef=useRef<HTMLInputElement>(null);
+  const [,setAnnotationRevision]=useState(0);
   // --- UI TOGGLES & MODALS ---
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [showGoToModal, setShowGoToModal] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  const [showHelp,setShowHelp]=useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
   // --- REFS & SINGLETONS ---
   const [presentationTimer] = useState(() => new PresentationTimer());
   const annotationStore = AnnotationStore.getInstance();
   const pdfCache = PdfCache.getInstance();
+  const activeStore=notesOpen?noteStore:annotationStore;
+  useEffect(()=>activeStore.subscribe(()=>{if(!activeStore.isEditing)setAnnotationRevision(n=>n+1);}),[activeStore]);
+  // Synchronize the local notebook backup and report storage failures.
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(()=>{if(!docInfo||!notebook)return;let active=true;saveNotebook(docInfo.id,notebook,error=>{if(active)setNoteStorageError(!!error)});return()=>{active=false}},[docInfo,notebook]);
+  useEffect(()=>{const flush=()=>{void flushInk()};document.addEventListener('visibilitychange',flush);window.addEventListener('pagehide',flush);let unlisten:(()=>void)|undefined;let disposed=false;if(isDesktopApp())void import('@tauri-apps/api/window').then(async({getCurrentWindow})=>{const stop=await getCurrentWindow().onCloseRequested(async event=>{event.preventDefault();try{await flushInk(true);await getCurrentWindow().destroy()}catch(error){alert(String(error))}});if(disposed)stop();else unlisten=stop;});return()=>{disposed=true;unlisten?.();document.removeEventListener('visibilitychange',flush);window.removeEventListener('pagehide',flush)}},[]);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const projectInputRef = useRef<HTMLInputElement | null>(null);
   const audienceWindowRef = useRef<Window | null>(null);
+  const audiencePdfRef = useRef<Uint8Array | null>(null);
   const lastWheelNavigationRef = useRef(0);
   const pdfLoadRequestRef = useRef(0);
 
@@ -178,14 +219,20 @@ export const App: React.FC = () => {
 
       pdfCache.clear();
       setPdfDoc(pdf);
+      setNotesOpen(false);
+      setNotebook(null);
       setDocInfo(info);
       setPdfBytes(sourceBytes);
       setCurrentSlide(1);
       setZoomFactor(1);
-      setZoomMode('fit-page');
+      setZoomMode('fit-width');
       setScreenCurtain('none');
       setIsAutoPlaying(false);
-      annotationStore.setDocument(info.id);
+      await annotationStore.setDocument(info.id);
+      if(request!==pdfLoadRequestRef.current)return;
+      setDocUndo([]);setDocRedo([]);setNotesOpen(false);
+      const loadedNotebook=await loadNotebook(info.id);if(request!==pdfLoadRequestRef.current)return;setNotebook(loadedNotebook);
+
       try {
         setSpeakerNotes(JSON.parse(localStorage.getItem(`crowshow_notes_${info.id}`) || '{}'));
         setSlideTransitions(JSON.parse(localStorage.getItem(`crowshow_transitions_${info.id}`) || '{}'));
@@ -194,6 +241,7 @@ export const App: React.FC = () => {
         setSlideTransitions({});
       }
 
+      try { originalDocumentRef.current={bytes:sourceBytes,annotations:annotationStore.getAllAnnotations(),notes:JSON.parse(localStorage.getItem(`crowshow_notes_${info.id}`)||'{}'),transitions:JSON.parse(localStorage.getItem(`crowshow_transitions_${info.id}`)||'{}'),slide:1,notebook:loadedNotebook}; }catch{ originalDocumentRef.current={bytes:sourceBytes,annotations:annotationStore.getAllAnnotations(),notes:{},transitions:{},slide:1,notebook:null}; }
       if (saveToLibrary) {
         const recent: RecentPdfDocument = {
           id: info.id,
@@ -222,7 +270,7 @@ export const App: React.FC = () => {
       console.error('PDF Load Error:', err);
       alert('PDF 파일을 불러오는 중 오류가 발생했습니다.');
     }
-  }, [annotationStore, pdfCache]);
+  }, [annotationStore, pdfCache, setZoomMode]);
 
   // Windows desktop integration: open PDFs passed by file association or a
   // second Explorer launch. The bridge is absent in the normal browser build.
@@ -301,7 +349,11 @@ export const App: React.FC = () => {
     sendAudienceState('navigate');
   }, [sendAudienceState]);
 
-  useEffect(() => annotationStore.subscribe(() => sendAudienceState('navigate')), [annotationStore, sendAudienceState]);
+  useEffect(()=>{
+    if(audiencePdfRef.current!==pdfBytes){audiencePdfRef.current=pdfBytes;sendAudienceState('initialize');}
+  },[pdfBytes,sendAudienceState]);
+
+  useEffect(() => annotationStore.subscribe(() => {if(!annotationStore.isEditing)sendAudienceState('navigate');}), [annotationStore, sendAudienceState]);
 
   useEffect(() => {
     const onAudienceReady = (event: MessageEvent) => {
@@ -336,13 +388,22 @@ export const App: React.FC = () => {
       if (!docInfo) return;
       const target = Math.max(1, Math.min(docInfo.totalSlides, slideNumber));
       if (target !== currentSlide) {
-        soundEngine.playSlideSwitch(settings.transitionSound);
         setCurrentSlide(target);
         setScreenCurtain('none');
       }
     },
-    [docInfo, currentSlide, soundEngine, settings.transitionSound]
+    [docInfo, currentSlide]
   );
+
+  const previousSoundSlide=useRef<{document:string;page:number}|null>(null);
+  useEffect(()=>{
+    if(!docInfo)return;
+    const previous=previousSoundSlide.current;
+    previousSoundSlide.current={document:docInfo.id,page:currentSlide};
+    if(previous?.document===docInfo.id&&previous.page!==currentSlide)soundEngine.playSlideSwitch(settings.transitionSound);
+  },[docInfo,currentSlide,soundEngine,settings.transitionSound]);
+  useEffect(()=>{soundEngine.setEnabled(settings.transitionSound!=='none');},[soundEngine,settings.transitionSound]);
+  useEffect(()=>{const unlock=()=>soundEngine.unlock();document.addEventListener('pointerdown',unlock);document.addEventListener('keydown',unlock);return()=>{document.removeEventListener('pointerdown',unlock);document.removeEventListener('keydown',unlock);};},[soundEngine]);
 
   // Tool selection with audio feedback
   const handleSelectTool = useCallback(
@@ -398,6 +459,9 @@ export const App: React.FC = () => {
     const shortcutManager = new KeyboardShortcutManager();
 
     const handleShortcut = (action: ShortcutAction) => {
+      if((printOpen||notesOpen)&&action==='exitPresentation') {setPrintOpen(false);setNotesOpen(false);return;}
+      if(printOpen||editBusy)return;
+      if(notesOpen&&['nextSlide','prevSlide','firstSlide','lastSlide','startPresentation','print'].includes(action))return;
       switch (action) {
         case 'nextSlide':
           handleNavigate(currentSlide + 1);
@@ -414,8 +478,10 @@ export const App: React.FC = () => {
         case 'startPresentation':
           handleStartPresentation();
           break;
+        case 'help':setShowHelp(true);break;
         case 'exitPresentation':
-          if (showGoToModal) setShowGoToModal(false);
+          if(showHelp)setShowHelp(false);
+          else if (showGoToModal) setShowGoToModal(false);
           else if (showSettingsModal) setShowSettingsModal(false);
           else if (viewMode === 'presentation' || viewMode === 'presenter') handleExitPresentation();
           break;
@@ -433,11 +499,11 @@ export const App: React.FC = () => {
           break;
         case 'undo':
           soundEngine.playClick();
-          annotationStore.undo();
+          activeStore.undo();
           break;
         case 'redo':
           soundEngine.playClick();
-          annotationStore.redo();
+          activeStore.redo();
           break;
         case 'toolSelect':
           handleSelectTool('select');
@@ -454,23 +520,25 @@ export const App: React.FC = () => {
         case 'toolLaser':
           handleSelectTool('laser');
           break;
-        case 'toolSpotlight':
-          handleSelectTool('spotlight');
+        case 'toolLasso':
+          handleSelectTool('lasso');
           break;
         case 'toolText':
           handleSelectTool('text');
           break;
+        case 'toggleNotes': setNotesOpen(v=>!v); break;
+        case 'print': if(viewMode==='normal')setPrintOpen(true); break;
         case 'zoomIn':
           soundEngine.playClick();
-          changeZoom(displayZoom + 0.15);
+          if(notesOpen)notebookRef.current?.zoomStep(1);else stepDisplayZoom(1);
           break;
         case 'zoomOut':
           soundEngine.playClick();
-          changeZoom(displayZoom - 0.15);
+          if(notesOpen)notebookRef.current?.zoomStep(-1);else stepDisplayZoom(-1);
           break;
         case 'zoomReset':
           soundEngine.playClick();
-          setZoomMode('fit-page');
+          if(notesOpen)notebookRef.current?.resetZoom();else changeZoom(1);
           break;
       }
     };
@@ -482,17 +550,21 @@ export const App: React.FC = () => {
     };
   }, [
     changeZoom,
+    stepDisplayZoom,
+    setZoomMode,
     displayZoom,
     currentSlide,
     docInfo,
     viewMode,
     showGoToModal,
-    showSettingsModal,
+    showSettingsModal,showHelp,
+    printOpen, notesOpen, editBusy,
     handleNavigate,
     handleStartPresentation,
     handleExitPresentation,
     handleSelectTool,
     annotationStore,
+    activeStore,
     soundEngine,
   ]);
 
@@ -505,7 +577,7 @@ export const App: React.FC = () => {
 
   const handleExportAnnotatedPdf = async () => {
     try {
-      await exportAnnotatedPdf(pdfDoc!, docInfo!.name);
+      await exportAnnotatedPdf(pdfDoc!, docInfo!.name, pdfBytes!);
     } catch (error) {
       console.error(error);
       alert('필기 포함 PDF를 만드는 중 오류가 발생했습니다.');
@@ -522,6 +594,8 @@ export const App: React.FC = () => {
       slideTransitions,
       speakerNotes
     );
+    project.notebook = notebook ?? undefined;
+    if(pdfBytes)project.pdfBase64=encodePdf(pdfBytes);
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -533,10 +607,15 @@ export const App: React.FC = () => {
 
   const handleImportProjectFile = (file: File) => {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const project = JSON.parse(String(event.target?.result ?? '')) as CrowShowProjectData;
-        if (!project?.annotations) throw new Error('Missing annotations');
+        const project = readProject(String(event.target?.result ?? ''));
+        if (!project?.annotations || typeof project.annotations!=='object') throw new Error('Missing annotations');
+        if(project.pdfBase64) await loadPdfData(decodePdf(project.pdfBase64),project.documentName);
+        else if(docInfo&&(project.totalSlides!==docInfo.totalSlides||project.documentName!==docInfo.name)&&!window.confirm('현재 PDF와 다른 프로젝트입니다. 필기와 메모를 불러올까요?'))return;
+        setNotebook(project.notebook??null);
+        if(originalDocumentRef.current)originalDocumentRef.current={...originalDocumentRef.current,annotations:project.annotations,notes:project.speakerNotes||{},transitions:(project.slideTransitions||{}) as Record<number,TransitionType>,notebook:project.notebook||null};
+
         annotationStore.setAllAnnotations(project.annotations);
         setSlideTransitions((project.slideTransitions ?? {}) as Record<number, TransitionType>);
         setSpeakerNotes(project.speakerNotes ?? {});
@@ -557,6 +636,41 @@ export const App: React.FC = () => {
     reader.readAsText(file);
   };
 
+  const snapshotDocument=():DocumentSnapshot=>({bytes:pdfBytes!,annotations:annotationStore.getAllAnnotations(),notes:speakerNotes,transitions:slideTransitions,slide:currentSlide,notebook});
+  const restoreDocument=async(snapshot:DocumentSnapshot)=>{
+    const loader=PdfLoader.getInstance();const info=await loader.loadFromBuffer(snapshot.bytes,docInfo!.name);
+    const pdf=loader.getPdfDocument();if(!pdf)throw new Error('PDF를 열 수 없습니다.');
+    pdfCache.clear();await annotationStore.setDocument(info.id);annotationStore.setAllAnnotations(snapshot.annotations);
+    setPdfDoc(pdf);setDocInfo(info);setPdfBytes(snapshot.bytes);setCurrentSlide(Math.min(snapshot.slide,info.totalSlides));
+    setSpeakerNotes(snapshot.notes);setSlideTransitions(snapshot.transitions);setNotebook(snapshot.notebook);
+    setRecentFiles(items=>{const next=[{id:info.id,name:info.name,date:new Date().toLocaleDateString(),slideCount:info.totalSlides,fileSize:snapshot.bytes.byteLength},...items.filter(item=>item.id!==info.id)].slice(0,8);try{localStorage.setItem('crowshow_recent',JSON.stringify(next));}catch{}return next;});
+    await savePdfDocument({id:info.id,name:info.name,date:new Date().toLocaleDateString(),slideCount:info.totalSlides,fileSize:snapshot.bytes.byteLength,bytes:snapshot.bytes.slice().buffer}).catch(()=>{});
+  };
+  const trimHistory=(items:DocumentSnapshot[])=>{
+    let bytes=0;return items.slice(-5).reverse().filter(item=>{bytes+=item.bytes.byteLength;return bytes<=256*1024*1024;}).reverse();
+  };
+  const handlePageEdit=async(edit:PageEdit)=>{
+    if(!pdfBytes||editLock.current)return;editLock.current=true;setEditBusy(true);
+    const before=snapshotDocument();
+    try{
+      const result=await editPdf(pdfBytes,edit);
+      const slide=edit.type==='delete'?Math.min(edit.page,result.mapping.length):edit.type==='move'?edit.to:edit.type==='rotate'?edit.page:edit.page+1;
+      const next:DocumentSnapshot={...before,bytes:result.bytes,slide,annotations:remapAnnotations(before.annotations,result.mapping,edit.type==='rotate'?edit.page:undefined,result.aspect),notes:remapPages(before.notes,result.mapping),transitions:remapPages(before.transitions,result.mapping)};
+      await restoreDocument(next);setDocUndo(history=>trimHistory([...history,before]));setDocRedo([]);setIsAutoPlaying(false);
+    }catch(error){console.error(error);alert(`페이지 편집 실패: ${String(error)}`);}finally{editLock.current=false;setEditBusy(false);}
+  };
+  const travelDocument=async(redo=false)=>{
+    const history=redo?docRedo:docUndo,last=history[history.length-1];if(!last||editLock.current)return;
+    editLock.current=true;setEditBusy(true);const before=snapshotDocument();
+    try{await restoreDocument(last);if(redo){setDocRedo(history.slice(0,-1));setDocUndo(items=>trimHistory([...items,before]));}else{setDocUndo(history.slice(0,-1));setDocRedo(items=>trimHistory([...items,before]));}}
+    catch(error){alert(`복원 실패: ${String(error)}`);}finally{editLock.current=false;setEditBusy(false);}
+  };
+
+  const restoreOriginal=async()=>{
+    if(!originalDocumentRef.current||editLock.current||!window.confirm('PDF를 열었을 때의 페이지와 필기로 복원합니다. 현재 상태는 페이지 편집 실행 취소로 되돌릴 수 있습니다.'))return;
+    editLock.current=true;setEditBusy(true);const current=snapshotDocument();
+    try{await restoreDocument({...originalDocumentRef.current,notebook});setDocUndo(history=>trimHistory([...history,current]));setDocRedo([]);}catch(error){alert(`복원 실패: ${String(error)}`);}finally{editLock.current=false;setEditBusy(false);}
+  };
   const handleOpenRecent = async (id: string) => {
     try {
       soundEngine.playClick();
@@ -597,10 +711,12 @@ export const App: React.FC = () => {
     return (
       <div className="app-container">
         <StartScreen
+          onOpenHelp={()=>setShowHelp(true)}
           onOpenFile={handleOpenFile}
           recentFiles={recentFiles}
           onOpenRecent={handleOpenRecent}
         />
+        {showHelp&&<HelpDialog onClose={()=>setShowHelp(false)}/>}
         <input
           ref={fileInputRef}
           type="file"
@@ -633,6 +749,7 @@ export const App: React.FC = () => {
     );
   }
 
+  const toolProps:ToolDockProps={activeTool,penColor,penWidth,highlighterColor,highlighterWidth,laserColor,shapeType,shapeFill,shapeWidth,shapeBorder,shapeFillColor,shapeOpacity,onShapeWidthChange:setShapeWidth,onShapeBorderChange:setShapeBorder,onShapeFillColorChange:setShapeFillColor,onShapeOpacityChange:setShapeOpacity,laserSize:settings.laserSize,laserTrailDurationMs:settings.laserTrailDurationMs,onLaserSizeChange:value=>setSettings(old=>({...old,laserSize:value})),onLaserDurationChange:value=>setSettings(old=>({...old,laserTrailDurationMs:value})),eraserMode,eraserWidth,enableStylusPressure:settings.enableStylusPressure,enableTilt:settings.enableTilt,onPressureChange:enabled=>setSettings(value=>({...value,enableStylusPressure:enabled})),onTiltChange:enabled=>setSettings(value=>({...value,enableTilt:enabled})),onEraserWidthChange:setEraserWidth,onSelectTool:handleSelectTool,onPenColorChange:setPenColor,onPenWidthChange:setPenWidth,onHighlighterColorChange:setHighlighterColor,onHighlighterWidthChange:setHighlighterWidth,onLaserColorChange:setLaserColor,onShapeTypeChange:setShapeType,onShapeFillChange:setShapeFill,onEraserModeChange:setEraserMode,onClearPage:()=>notesOpen?notebookRef.current?.clearPage():annotationStore.clearSlide(currentSlide),onClearDocument:()=>notesOpen?notebookRef.current?.clearAll():setShowClearConfirm(true)};
   const currentSlideAspect = docInfo.pageAspectRatios[currentSlide - 1] || 16 / 9;
   const effectiveTransitionType = slideTransitions[currentSlide] ?? settings.defaultTransition;
   const effectiveTransitionConfig: SlideTransitionConfig = {
@@ -643,6 +760,7 @@ export const App: React.FC = () => {
 
   return (
     <div className={`app-container ${viewMode === 'presentation' ? 'presentation-fullscreen' : ''}`}>
+      <input ref={insertInputRef} type="file" accept=".pdf,application/pdf" style={{display:'none'}} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void file.arrayBuffer().then(bytes=>handlePageEdit({type:'insert',page:currentSlide,bytes:new Uint8Array(bytes)})).catch(()=>alert('PDF 삽입 파일을 읽을 수 없습니다.'));}}/>
       {/* Hidden File Input for Open File Button */}
       <input
         ref={fileInputRef}
@@ -666,29 +784,29 @@ export const App: React.FC = () => {
         }}
       />
 
-      {viewMode === 'normal' && (
+      {(
         <HeaderToolbar
+          notesOpen={notesOpen} onToggleNotes={()=>setNotesOpen(value=>!value)}
           transitionType={effectiveTransitionType}
           transitionSound={settings.transitionSound}
-          canUndo={annotationStore.canUndo()}
-          canRedo={annotationStore.canRedo()}
+          canUndo={activeStore.canUndo()}
+          canRedo={activeStore.canRedo()}
           onOpenFile={() => fileInputRef.current?.click()}
           onStartPresentation={handleStartPresentation}
           onOpenPresenterMode={() => { soundEngine.playClick(); setViewMode('presenter'); }}
           onTransitionChange={(trans: TransitionType) => { soundEngine.playClick(); setTransitionConfig((prev) => ({ ...prev, type: trans })); setSlideTransitions((transitions) => ({ ...transitions, [currentSlide]: trans })); }}
           onTransitionSoundChange={(transitionSound) => {
             soundEngine.setEnabled(transitionSound !== 'none');
-            setIsSoundEnabled(transitionSound !== 'none');
             setSettings((current) => ({ ...current, transitionSound }));
           }}
-          onUndo={() => { soundEngine.playClick(); annotationStore.undo(); }}
-          onRedo={() => { soundEngine.playClick(); annotationStore.redo(); }}
-          onClearSlide={() => { soundEngine.playClick(); annotationStore.clearSlide(currentSlide); }}
-          onClearAll={() => { soundEngine.playClick(); setShowClearConfirm(true); }}
+          onUndo={() => { soundEngine.playClick(); activeStore.undo(); }}
+          onRedo={() => { soundEngine.playClick(); activeStore.redo(); }}
+          onPrint={()=>setPrintOpen(true)}
+          onExportPdf={()=>{if(pdfBytes)downloadBytes(pdfBytes,docInfo.name.replace(/\.pdf$/i,'')+'-edited.pdf','application/pdf');}}
           onExportAnnotatedPdf={() => void handleExportAnnotatedPdf()}
           onExportProject={handleExportProject}
           onImportProject={() => projectInputRef.current?.click()}
-          onOpenSettings={() => { soundEngine.playClick(); setShowSettingsModal(true); }}
+          onOpenSettings={() => { soundEngine.playClick(); setShowSettingsModal(true); }} onOpenHelp={()=>setShowHelp(true)}
         />
       )}
 
@@ -705,7 +823,10 @@ export const App: React.FC = () => {
               soundEngine.playClick();
               setIsSidebarOpen(!isSidebarOpen);
             }}
-            onSelectSlide={handleNavigate}
+            onSelectSlide={page=>{setNotesOpen(false);handleNavigate(page);}}
+            onRestore={()=>void restoreOriginal()} onSave={()=>{if(pdfBytes)downloadBytes(pdfBytes,docInfo.name.replace(/\.pdf$/i,'')+'-edited.pdf','application/pdf');}} canRestore={docUndo.length>0}
+            busy={editBusy} onEdit={(type,page,to)=>void handlePageEdit(type==='move'?{type,page,to:to!}:{type,page})}
+            onInsert={()=>insertInputRef.current?.click()} onUndo={()=>void travelDocument()} onRedo={()=>void travelDocument(true)} canUndo={docUndo.length>0} canRedo={docRedo.length>0}
           />
         )}
 
@@ -715,6 +836,8 @@ export const App: React.FC = () => {
           className="slide-center-stage"
           onContextMenu={(event) => event.preventDefault()}
         >
+          {notesOpen&&<NotebookPanel key={docInfo.id} ref={notebookRef} docId={docInfo.id} data={notebook} storageError={noteStorageError} store={noteStore} tools={toolProps} onChange={setNotebook} onStatus={setNoteStatus} onClose={()=>setNotesOpen(false)}/>}
+          <div className="pdf-workspace-view" hidden={notesOpen}>
           <TransitionContainer
             key={docInfo.id}
             pdfDoc={pdfDoc}
@@ -725,7 +848,8 @@ export const App: React.FC = () => {
             zoomFactor={zoomFactor}
             zoomMode={zoomMode}
             onZoomChange={changeZoom}
-            onScaleChange={setDisplayZoom}
+            onScaleChange={resolveDisplayZoom}
+            onZoomStep={stepDisplayZoom}
             onWheelNavigate={(direction) => {
               const now = performance.now();
               if (now - lastWheelNavigationRef.current < 420) return;
@@ -738,13 +862,15 @@ export const App: React.FC = () => {
             highlighterColor={highlighterColor}
             highlighterWidth={highlighterWidth}
             laserColor={laserColor}
-            spotlightRadius={settings.spotlightRadius}
             shapeType={shapeType}
-            shapeFill={shapeFill}
+            shapeFill={shapeFill} shapeWidth={shapeWidth} shapeBorder={shapeBorder} shapeFillColor={shapeFillColor} shapeOpacity={shapeOpacity} laserSize={settings.laserSize} laserTrailDurationMs={settings.laserTrailDurationMs}
+            eraserMode={eraserMode}
+            eraserWidth={eraserWidth}
+            enableTilt={settings.enableTilt}
+            readOnly={notesOpen||printOpen||editBusy}
             screenCurtain={screenCurtain}
             transitionConfig={effectiveTransitionConfig}
             enableStylusPressure={settings.enableStylusPressure}
-            laserTrailEnabled={settings.laserTrailEnabled}
             onRequestSelectTool={() => handleSelectTool('select')}
           />
 
@@ -755,95 +881,46 @@ export const App: React.FC = () => {
             onPrev={() => handleNavigate(currentSlide - 1)}
             onNext={() => handleNavigate(currentSlide + 1)}
           />
+          </div>
         </div>
       </div>
 
       {/* BOTTOM STATUS AND TOOL BAR (Normal mode only) */}
-      {viewMode === 'normal' && (
+      {(
           <BottomStatusBar
-          documentName={docInfo.name}
-          tools={<ToolDock activeTool={activeTool} penColor={penColor} penWidth={penWidth} highlighterColor={highlighterColor} highlighterWidth={highlighterWidth} laserColor={laserColor} shapeType={shapeType} shapeFill={shapeFill} onSelectTool={handleSelectTool} onPenColorChange={setPenColor} onPenWidthChange={setPenWidth} onHighlighterColorChange={setHighlighterColor} onHighlighterWidthChange={setHighlighterWidth} onLaserColorChange={setLaserColor} onShapeTypeChange={setShapeType} onShapeFillChange={setShapeFill} />}
-          currentSlide={currentSlide}
-          totalSlides={docInfo.totalSlides}
-          zoomFactor={displayZoom}
-          zoomMode={zoomMode}
+          presentation={viewMode==='presentation'} onExitPresentation={handleExitPresentation}
+          documentName={notesOpen?'Notebook · '+docInfo.name:docInfo.name}
+          tools={<ToolDock {...toolProps}/>}
+          currentSlide={notesOpen?noteStatus.page:currentSlide}
+          totalSlides={notesOpen?noteStatus.total:docInfo.totalSlides}
+          zoomFactor={notesOpen?noteStatus.zoom:displayZoom}
+          zoomMode={notesOpen?(noteStatus.mode||'fit-width'):zoomMode}
           timer={presentationTimer}
-          onNavigate={handleNavigate}
+          onNavigate={page=>notesOpen?notebookRef.current?.navigate(page):handleNavigate(page)}
           onZoomIn={() => {
             soundEngine.playClick();
-            changeZoom(displayZoom + 0.15);
+            if(notesOpen)notebookRef.current?.zoomStep(1);else stepDisplayZoom(1);
           }}
           onZoomOut={() => {
             soundEngine.playClick();
-            changeZoom(displayZoom - 0.15);
+            if(notesOpen)notebookRef.current?.zoomStep(-1);else stepDisplayZoom(-1);
           }}
           onZoomReset={() => {
             soundEngine.playClick();
-            changeZoom(1);
+            if(notesOpen)notebookRef.current?.resetZoom();else changeZoom(1);
           }}
-          onFitPage={() => setZoomMode('fit-page')}
-          onFitWidth={() => setZoomMode('fit-width')}
+          onFitPage={() => notesOpen?notebookRef.current?.fitPage():setZoomMode('fit-page')}
+          onFitWidth={() => notesOpen?notebookRef.current?.fitWidth():setZoomMode('fit-width')}
           onStartPresentation={handleStartPresentation}
           onGoToSlide={() => {
             soundEngine.playClick();
-            setShowGoToModal(true);
+            if(notesOpen)document.querySelector<HTMLSelectElement>('[aria-label="노트 페이지"]')?.focus();else setShowGoToModal(true);
           }}
           />
       )}
 
-      {/* FLOATING TOOLBAR (Presentation mode only) */}
-      {viewMode === 'presentation' && (
-        <FloatingToolbar
-          currentSlide={currentSlide}
-          totalSlides={docInfo.totalSlides}
-          activeTool={activeTool}
-          penColor={penColor}
-          penWidth={penWidth}
-          highlighterColor={highlighterColor}
-          highlighterWidth={highlighterWidth}
-          laserColor={laserColor}
-          shapeType={shapeType}
-          shapeFill={shapeFill}
-          screenCurtain={screenCurtain}
-          canUndo={annotationStore.canUndo()}
-          canRedo={annotationStore.canRedo()}
-          isSoundEnabled={isSoundEnabled}
-          onToggleSound={handleToggleSound}
-          onSelectTool={handleSelectTool}
-          onPenColorChange={setPenColor}
-          onPenWidthChange={setPenWidth}
-          onHighlighterColorChange={setHighlighterColor}
-          onHighlighterWidthChange={setHighlighterWidth}
-          onLaserColorChange={setLaserColor}
-          onShapeTypeChange={setShapeType}
-          onShapeFillChange={setShapeFill}
-          onNavigate={handleNavigate}
-          onToggleCurtain={(curtain) => {
-            soundEngine.playCurtain();
-            setScreenCurtain((c) => (c === curtain ? 'none' : curtain));
-          }}
-          onUndo={() => {
-            soundEngine.playClick();
-            annotationStore.undo();
-          }}
-          onRedo={() => {
-            soundEngine.playClick();
-            annotationStore.redo();
-          }}
-          onClearSlide={() => {
-            soundEngine.playClick();
-            annotationStore.clearSlide(currentSlide);
-          }}
-          onExitFullscreen={handleExitPresentation}
-          onGoToSlide={() => {
-            soundEngine.playClick();
-            setShowGoToModal(true);
-          }}
-          autoHideDelayMs={settings.autoHideToolbarDelayMs}
-          isAutoPlaying={isAutoPlaying}
-          onToggleAutoPlay={() => setIsAutoPlaying((playing) => !playing)}
-        />
-      )}
+      {printOpen&&<PrintDialog pdf={pdfDoc} annotations={annotationStore.getAllAnnotations()} onClose={()=>setPrintOpen(false)}/>}
+      {editBusy&&<div className="edit-progress" role="status">PDF 페이지 편집 중…</div>}
 
       {/* MODALS */}
       {showGoToModal && (
@@ -855,6 +932,7 @@ export const App: React.FC = () => {
         />
       )}
 
+      {showHelp&&<HelpDialog onClose={()=>setShowHelp(false)}/>}
       {showSettingsModal && (
         <SettingsModal
           settings={settings}

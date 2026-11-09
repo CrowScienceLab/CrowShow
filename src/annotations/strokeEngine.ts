@@ -1,4 +1,6 @@
 import type { AnnotationStroke, NormalizedPoint, ShapeType } from '../types/annotation';
+import { imageFor } from './media';
+import { strokeBounds } from './geometry';
 import { ShapeEngine } from './shapeEngine';
 
 export class StrokeEngine {
@@ -31,42 +33,41 @@ export class StrokeEngine {
   ): void {
     if (stroke.points.length === 0) return;
 
+    const factor = canvasWidth / (stroke.referenceWidth || canvasWidth);
+    stroke = { ...stroke, width: stroke.width * factor, fontSize: stroke.fontSize ? stroke.fontSize * factor : undefined };
+
     ctx.save();
 
-    // Apply rotation around bounding box center if specified
-    if (stroke.rotation && stroke.points.length > 0) {
-      const pts = stroke.points;
-      let minX = pts[0].x;
-      let maxX = pts[0].x;
-      let minY = pts[0].y;
-      let maxY = pts[0].y;
-      for (let i = 1; i < pts.length; i++) {
-        if (pts[i].x < minX) minX = pts[i].x;
-        if (pts[i].x > maxX) maxX = pts[i].x;
-        if (pts[i].y < minY) minY = pts[i].y;
-        if (pts[i].y > maxY) maxY = pts[i].y;
-      }
-      const cx = ((minX + maxX) / 2) * canvasWidth;
-      const cy = ((minY + maxY) / 2) * canvasHeight;
-      ctx.translate(cx, cy);
-      ctx.rotate(stroke.rotation);
-      ctx.translate(-cx, -cy);
+    if(stroke.rotation||stroke.flipX||stroke.flipY) {
+      const box=strokeBounds({...stroke,rotation:0,flipX:false,flipY:false},canvasWidth,canvasHeight);
+      ctx.translate(box.cx,box.cy);ctx.rotate(stroke.rotation||0);ctx.scale(stroke.flipX?-1:1,stroke.flipY?-1:1);ctx.translate(-box.cx,-box.cy);
     }
-
+    ctx.globalAlpha=stroke.opacity??1;
+    if(stroke.tool==='image'&&stroke.imageData&&stroke.points.length>=2) {
+      const image=imageFor(stroke.imageData),a=stroke.points[0],b=stroke.points[stroke.points.length-1];
+      if(image.complete&&image.naturalWidth)ctx.drawImage(image,Math.min(a.x,b.x)*canvasWidth,Math.min(a.y,b.y)*canvasHeight,Math.abs(b.x-a.x)*canvasWidth,Math.abs(b.y-a.y)*canvasHeight);
+      ctx.restore();return;
+    }
     // Use the operating system's default UI font; no web font is bundled.
-    if (stroke.tool === 'text' && stroke.text) {
+    if ((stroke.tool === 'text'||stroke.tool==='link') && stroke.text) {
       const p = stroke.points[0];
       const x = p.x * canvasWidth;
       const y = p.y * canvasHeight;
       const size = stroke.fontSize || Math.max(18, stroke.width * 5);
       const font = stroke.fontFamily || "system-ui, sans-serif";
-      ctx.font = `600 ${size}px ${font}`;
+      ctx.font = `${stroke.italic ? 'italic ' : ''}${stroke.bold === undefined ? 600 : stroke.bold ? 700 : 400} ${size}px ${font}`;
       ctx.fillStyle = stroke.color;
       ctx.textBaseline = 'top';
       const lines = stroke.text.split('\n');
       const lineHeight = size * 1.35;
       lines.forEach((line, idx) => {
-        ctx.fillText(line, x, y + idx * lineHeight);
+        if(stroke.textOutline){ctx.strokeStyle=stroke.color;ctx.lineWidth=Math.max(1,size/28);ctx.strokeText(line,x,y+idx*lineHeight);}
+        else ctx.fillText(line, x, y + idx * lineHeight);
+        if (stroke.underline||stroke.tool==='link') {
+          ctx.beginPath(); ctx.strokeStyle = stroke.color; ctx.lineWidth = Math.max(1, size / 18);
+          ctx.moveTo(x, y + idx * lineHeight + size * 1.08);
+          ctx.lineTo(x + ctx.measureText(line).width, y + idx * lineHeight + size * 1.08); ctx.stroke();
+        }
       });
       ctx.restore();
       return;
@@ -81,7 +82,7 @@ export class StrokeEngine {
         stroke.width,
         !!stroke.shapeFill,
         canvasWidth,
-        canvasHeight
+        canvasHeight, stroke.shapeFillColor, stroke.shapeBorder!==false
       );
       ctx.restore();
       return;
@@ -92,7 +93,8 @@ export class StrokeEngine {
       ctx.globalCompositeOperation = 'multiply';
       ctx.strokeStyle = stroke.color;
       ctx.fillStyle = stroke.color;
-      ctx.lineWidth = stroke.width;
+      const tilt=stroke.points.reduce((n,p)=>n+Math.min(90,Math.hypot(p.tiltX||0,p.tiltY||0)),0)/stroke.points.length;
+      ctx.lineWidth = stroke.width*(1+tilt/180);
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
     } else {
@@ -107,7 +109,7 @@ export class StrokeEngine {
 
     const pts = stroke.points;
     const pressureWidth = (point: NormalizedPoint): number =>
-      stroke.tool === 'pen' ? stroke.width * (0.5 + (point.pressure ?? 0.5)) : stroke.width;
+      stroke.tool === 'pen' ? stroke.width * Math.max(.2,Math.min(1.7,Math.pow((point.pressure??.5)/.5,.65))) * (1+Math.min(90,Math.hypot(point.tiltX||0,point.tiltY||0))/180) : stroke.width;
 
     // Single point (dot)
     if (pts.length === 1) {
@@ -195,7 +197,7 @@ export class StrokeEngine {
     canvasWidth: number,
     canvasHeight: number,
     shapeType?: ShapeType,
-    shapeFill?: boolean
+    shapeFill?: boolean,shapeFillColor?:string,shapeBorder=true,shapeOpacity=1
   ): void {
     if (points.length === 0) return;
 
@@ -203,10 +205,10 @@ export class StrokeEngine {
       id: 'live',
       tool,
       shapeType,
-      shapeFill,
+      shapeFill,shapeFillColor,shapeBorder,
       color,
       width,
-      opacity: 1.0,
+      opacity: shapeOpacity,
       points,
       slideNumber: 0,
       createdAt: Date.now(),

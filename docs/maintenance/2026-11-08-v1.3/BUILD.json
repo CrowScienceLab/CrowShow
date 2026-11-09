@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-08",
+  "version": "1.3.0",
+  "identifier": "lab.crowscience.crowshow.review",
+  "published": false,
+  "files": [
+    {
+      "name": "CrowShow-v1.3-Review-Setup-x64.exe",
+      "sha256": "92bb59da05d2ea25b91df8004bb8ea20f041e4b4f1202da36a10471fb8556543",
+      "bytes": 7625349
+    },
+    {
+      "name": "CrowShow-v1.3-Review-x64.exe",
+      "sha256": "2fae9b6f1da6f8e2275c9fd1b00fec88b9b5bce8a9f4097ab04e8d47fd3bb4e9",
+      "bytes": 16355328
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import type { ToolType, ShapeType, LaserPointerState, SpotlightState } from '../types/annotation';
+import type { ToolType, ShapeType, LaserPointerState } from '../types/annotation';
 import type { ScreenCurtain, SlideTransitionConfig } from '../types/presentation';
 import { PdfRenderer } from '../pdf/pdfRenderer';
-import { getPdfLayout, getZoomScroll, PAGE_PADDING, MIN_ZOOM, MAX_ZOOM, type PdfZoomMode } from '../pdf/pdfViewport';
+import { getPdfLayout, getZoomScroll, PAGE_PADDING, stepZoom, type PdfZoomMode } from '../pdf/pdfViewport';
 import { AnnotationCanvas } from '../annotations/annotationCanvas';
 import { EffectsLayer } from '../annotations/effectsLayer';
 import { TransitionEngine } from './transitionEngine';
@@ -19,6 +19,7 @@ interface TransitionContainerProps {
   zoomMode?: PdfZoomMode;
   onZoomChange?: (zoom: number) => void;
   onScaleChange?: (zoom: number) => void;
+  onZoomStep?: (direction:number)=>void;
   onWheelNavigate?: (direction: number) => void;
   activeTool: ToolType;
   penColor: string;
@@ -26,13 +27,14 @@ interface TransitionContainerProps {
   highlighterColor: string;
   highlighterWidth: number;
   laserColor: string;
-  spotlightRadius: number;
+  shapeWidth?:number;shapeBorder?:boolean;shapeFillColor?:string;shapeOpacity?:number;laserSize?:number;laserTrailDurationMs?:number;
   shapeType?: ShapeType;
   shapeFill?: boolean;
+  eraserMode?: import('../types/annotation').EraserMode;
+  eraserWidth?:number;enableTilt?:boolean;
   screenCurtain: ScreenCurtain;
   transitionConfig: SlideTransitionConfig;
   enableStylusPressure?: boolean;
-  laserTrailEnabled?: boolean;
   readOnly?: boolean;
   onRequestSelectTool?: () => void;
 }
@@ -47,6 +49,7 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
   zoomMode = 'fit-page',
   onZoomChange,
   onScaleChange,
+  onZoomStep,
   onWheelNavigate,
   activeTool,
   penColor,
@@ -54,13 +57,14 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
   highlighterColor,
   highlighterWidth,
   laserColor,
-  spotlightRadius,
+  shapeWidth=3,shapeBorder=true,shapeFillColor,shapeOpacity=1,laserSize=4,laserTrailDurationMs=700,
   shapeType = 'rectangle',
   shapeFill = false,
+  eraserMode = 'object',
+  eraserWidth=28,enableTilt=true,
   screenCurtain,
   transitionConfig,
   enableStylusPressure = true,
-  laserTrailEnabled = true,
   readOnly = false,
   onRequestSelectTool,
 }) => {
@@ -75,14 +79,14 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
   const resolvedSize = pageSize?.pdf === pdfDoc && pageSize.page === currentSlide
     ? pageSize : { width: 960, height: 960 / slideAspect };
   const zoomAnchor = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
-  const dragRef = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; left: number; top: number; right: boolean; moved:boolean; started:number } | null>(null);
   const previousLayout = useRef<{ pdf: PDFDocumentProxy; page: number; width: number; height: number; left: number; top: number } | null>(null);
 
   useEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
-      setViewportSize({ width: element.clientWidth, height: element.clientHeight });
+      if(element.clientWidth&&element.clientHeight)setViewportSize({ width: element.clientWidth, height: element.clientHeight });
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -112,20 +116,13 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
     enterClass: '',
   });
 
-  // Laser & Spotlight states
+  // Laser state
   const [laserState, setLaserState] = useState<LaserPointerState>({
     x: 0.5,
     y: 0.5,
     active: false,
     color: laserColor,
     trail: [],
-  });
-
-  const [spotlightState, setSpotlightState] = useState<SpotlightState>({
-    x: 0.5,
-    y: 0.5,
-    active: false,
-    radius: spotlightRadius,
   });
 
   const layout = useMemo(() => getPdfLayout(resolvedSize.width, resolvedSize.height,
@@ -167,7 +164,7 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
         const bounds = element.getBoundingClientRect();
         zoomAnchor.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top,
           left: element.scrollLeft, top: element.scrollTop };
-        onZoomChange?.(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, layout.zoom * Math.exp(-deltaY * 0.0015))));
+        if(onZoomStep)onZoomStep(deltaY<0?1:-1);else onZoomChange?.(stepZoom(layout.zoom,deltaY<0?1:-1));
       } else if (element.scrollHeight > element.clientHeight + 2 || element.scrollWidth > element.clientWidth + 2) {
         element.scrollBy({ left: event.shiftKey ? deltaY : event.deltaX * deltaScale,
           top: event.shiftKey ? 0 : deltaY });
@@ -177,7 +174,7 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
     };
     element.addEventListener('wheel', onWheel, { passive: false });
     return () => element.removeEventListener('wheel', onWheel);
-  }, [layout.zoom, onZoomChange, onWheelNavigate]);
+  }, [layout.zoom, onZoomChange, onZoomStep, onWheelNavigate]);
 
   // Handle slide transitions
   useEffect(() => {
@@ -270,6 +267,10 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
       ref={scrollRef}
       className="transition-viewport pdf-scroll-viewport"
       data-zoom-mode={zoomMode}
+      data-page-number={currentSlide}
+      data-page-count={pdfDoc.numPages}
+      role="region"
+      aria-label={`PDF 페이지 ${currentSlide} / ${pdfDoc.numPages}`}
       onScroll={() => {
         const element = scrollRef.current;
         if (element && previousLayout.current) {
@@ -279,20 +280,24 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
       }}
       onPointerDownCapture={(event) => {
         const element = scrollRef.current;
-        if (!element || !(event.button === 1 || (event.button === 0 && event.shiftKey))
-          || (element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight)) return;
-        dragRef.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop };
+        if (!element || !(event.button === 2 || event.button === 1 || (event.button === 0 && event.shiftKey))) return;
+        if ((event.target as HTMLElement).closest('input,textarea,button,select')) return;
+        dragRef.current = { x: event.clientX, y: event.clientY, left: element.scrollLeft, top: element.scrollTop, right:event.button===2, moved:false, started:performance.now() };
         element.setPointerCapture(event.pointerId);
         event.preventDefault(); event.stopPropagation();
       }}
-      onPointerMove={(event) => {
+      onPointerMoveCapture={(event) => {
         const drag = dragRef.current;
         const element = scrollRef.current;
         if (!drag || !element) return;
+        if(Math.hypot(event.clientX-drag.x,event.clientY-drag.y)>5) drag.moved=true;
+        event.preventDefault();event.stopPropagation();
         element.scrollLeft = drag.left - (event.clientX - drag.x);
         element.scrollTop = drag.top - (event.clientY - drag.y);
       }}
-      onPointerUp={(event) => {
+      onPointerUpCapture={(event) => {
+        const drag=dragRef.current;
+        if(drag){event.preventDefault();event.stopPropagation(); }
         dragRef.current = null;
         if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
       }}
@@ -343,25 +348,22 @@ export const TransitionContainer: React.FC<TransitionContainerProps> = ({
           highlighterColor={highlighterColor}
           highlighterWidth={highlighterWidth}
           laserColor={laserColor}
-          spotlightRadius={spotlightRadius}
           shapeType={shapeType}
-          shapeFill={shapeFill}
+          shapeFill={shapeFill} shapeWidth={shapeWidth} shapeBorder={shapeBorder} shapeFillColor={shapeFillColor} shapeOpacity={shapeOpacity} laserSize={laserSize} laserTrailDurationMs={laserTrailDurationMs}
+          eraserMode={eraserMode}
+          eraserWidth={eraserWidth} enableTilt={enableTilt}
           enableStylusPressure={enableStylusPressure}
-          laserTrailEnabled={laserTrailEnabled}
           readOnly={readOnly}
           onRequestSelectTool={onRequestSelectTool}
           onLaserChange={setLaserState}
-          onSpotlightChange={setSpotlightState}
         />
 
-        {/* Presentation Effects Layer (Laser, Spotlight with 1.5x magnifier, Curtains) */}
+        {/* Presentation Effects Layer (Laser and screen curtains) */}
         <EffectsLayer
           width={slideWidth}
           height={slideHeight}
           laserState={laserState}
-          spotlightState={spotlightState}
           screenCurtain={screenCurtain}
-          sourceCanvasRef={primaryCanvasRef}
         />
       </div>
       </div>

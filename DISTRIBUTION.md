@@ -5,7 +5,7 @@
 ## 제품 식별 정보
 
 - 제품명: `CrowShow`
-- 제품 버전: 표시 `1.1`, 내부 `1.1.0`
+- 제품 버전: 표시 `1.5`, 내부 `1.5.0`
 - 표시 제작자: `Crow Science Lab`
 - GitHub 조직: `CrowScienceLab`
 - GitHub 저장소: `https://github.com/CrowScienceLab/CrowShow`
@@ -31,7 +31,7 @@ CrowLink, CrowEyes, Crow Pack과 같은 흐름을 사용한다.
 
 - 첫 실행 시 짧은 시작 안내를 제공한다.
 - 앱 내부 `도움말`에서 PDF 열기, 페이지 이동, 필기, 텍스트, 도형, 레이저,
-  스포트라이트, 전체화면, 프로젝트 저장 및 단축키를 확인할 수 있어야 한다.
+  Notebook, 전체화면, 프로젝트 저장 및 단축키를 확인할 수 있어야 한다.
 - GitHub README와 설치 프로그램에도 동일한 한국어 기본 사용법을 포함한다.
 - 앱의 정보 화면에 제품 버전, 제작자, 공식 GitHub 주소를 표시한다.
 
@@ -60,9 +60,9 @@ Smart App Control 경고가 표시될 수 있다. 설치 화면과 GitHub 릴리
 
 ## GitHub 릴리스 구성
 
-`v1.1.0` 릴리스에는 다음 파일을 게시한다. 이전 앱 호환성을 위해 체크섬 이름은 반드시 `SHA256SUMS.txt`로 유지한다.
+`v1.5.0` 릴리스에는 다음 파일을 게시한다. 이전 앱 호환성을 위해 체크섬 이름은 반드시 `SHA256SUMS.txt`로 유지한다.
 
-- `CrowShow-v1.1-Setup-x64.exe`
+- `CrowShow-v1.5-Setup-x64.exe`
 - `SHA256SUMS.txt`
 - 한국어 사용 안내 또는 README 링크
 - Windows 미서명 설치 경고 안내

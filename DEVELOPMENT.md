@@ -1,3 +1,11 @@
+> 현행 로컬 검토판: **1.5 (2026-11-10)**. GitHub·Microsoft Store 미업로드. [1.5 검증 보고서](docs/maintenance/2026-11-10-v1.5/REPORT.md). 이전 검토판 설명과 충돌하면 아래 1.5 내용이 우선합니다.
+
+> 최신 검토판은 2026-11-09 **1.3 Review4**입니다. 발표 하위 메뉴·컴팩트 팝업·레이저 점/상시 잔상·PDF 너비 맞춤 100%·전환음을 수정하고, 독립 Notebook 파일과 PC용 Drive 동기화 폴더 저장을 추가했습니다. GitHub·Microsoft Store 미업로드. [사용법](USER_GUIDE.md), [검증 보고서](docs/maintenance/2026-11-09-v1.3-review4/REPORT.md). 이전 단계와 충돌하면 Review4가 우선합니다.
+
+> 최신 검토판은 2026-11-09 **1.3 Review3**입니다. 선택·반전·회전, 숫자 조절 메뉴와 Notebook 다중 노트·너비 맞춤·PDF 불러오기를 반영했습니다. 현행 동작: [사용법](USER_GUIDE.md), [검증 보고서](docs/maintenance/2026-11-09-v1.3-review3/REPORT.md).
+
+> 2026-11-08 Review2: 원형 메뉴·차임벨·폭탄을 제거하고 하단 공통 직선 도구바로 통일했습니다. 노트는 전체 작업 화면으로 전환하며 스프링 용지·이미지·링크·두 페이지 보기를 지원합니다. 현행 사용법은 [USER_GUIDE.md](USER_GUIDE.md), 검증은 [Review2 보고서](docs/maintenance/2026-11-08-v1.3-toolbar-notebook/REPORT.md)를 참고하세요. 이전 단계 기록과 충돌하면 Review2가 우선합니다.
+
 # PDF Presentation Player - 개발 및 유지보수 가이드 (DEVELOPMENT.md)
 
 이 문서는 Codex 또는 후속 개발자가 이 프로젝트를 이어서 수정 및 확장할 수 있도록 작성된 기술 가이드입니다.
@@ -94,8 +102,21 @@ NSIS 설치 파일은 `src-tauri\target\release\bundle\nsis`에 생성됩니다.
 자동 재생, 필기 포함 PDF 내보내기, 청중 분리 창과 Windows NSIS 패키징은 구현되어 있습니다.
 청중 창은 팝업 허용 및 실행 환경에 따라 별도 확인이 필요합니다.
 
-- 표시 버전: 1.1 (내부 1.1.0)
+- 표시 버전: 1.3 (내부 1.3.0), 로컬 검토 중·업로드 금지
 - 회귀 검사: `node scripts/regression.cjs`
 - Rust 업데이트 검사: `cargo test --manifest-path src-tauri/Cargo.toml --lib`
 - 상세 변경 및 제한: `docs/maintenance/2026-10-02-v1.1-pdf-update/REPORT.md`
 - 버전별 기능: `VERSION_HISTORY.md`
+
+## 1.3 작업 경로
+
+- `src/utils/pdfEditing.ts`: 실제 PDF 페이지 조작과 페이지 데이터 매핑
+- `src/components/PrintDialog.tsx`: 페이지 범위·N-up A4 인쇄 미리보기
+- `src/components/NotebookPanel.tsx`: 독립 AnnotationStore를 사용하는 문서별 로컬 필기장
+- `src/components/RadialMenu.tsx`: 드래그 이동·회전 링·도구 설정 재사용
+- `src/annotations/geometry.ts`: 선택 경계와 올가미 판정
+- `src/utils/projectValidation.ts`: 외부 프로젝트 구조 검사
+- `src-tauri/tauri.review.conf.json`: 기존 앱 저장소와 PDF 연결을 분리한 검토용 빌드
+- 검증: `node scripts/v13-data.cjs`, `node scripts/v13-ui.cjs`, 기존 `node scripts/regression.cjs`
+- UI 테스트는 로컬 Edge와 `dist`를 사용하며 사용자 브라우저를 조작하지 않습니다. 설치된 Playwright 경로는 테스트 스크립트에서 환경에 맞게 조정하세요.
+- 노트 데이터는 기존 앱과 같은 로컬 저장소 한계가 있고 `.crowshow` 내보내기로 백업합니다. Drive는 비활성입니다.

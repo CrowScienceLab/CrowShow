@@ -1,44 +1,30 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { AnnotationStore } from '../annotations/annotationStore';
+import { prepareImages } from '../annotations/media';
 import { StrokeEngine } from '../annotations/strokeEngine';
-
-export async function exportAnnotatedPdf(pdfDoc: PDFDocumentProxy, fileName: string): Promise<void> {
-  const { PDFDocument } = await import('pdf-lib');
-  const output = await PDFDocument.create();
-  const store = AnnotationStore.getInstance();
-
-  for (let pageNumber = 1; pageNumber <= pdfDoc.numPages; pageNumber += 1) {
-    const sourcePage = await pdfDoc.getPage(pageNumber);
-    const viewport = sourcePage.getViewport({ scale: 2 });
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (!ctx) throw new Error('Canvas 2D context is unavailable.');
-
-    await sourcePage.render({ canvas, canvasContext: ctx, viewport }).promise;
-    StrokeEngine.renderStrokes(
-      ctx,
-      store.getStrokesForSlide(pageNumber),
-      canvas.width,
-      canvas.height
-    );
-
-    const pngBlob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('PNG conversion failed.'))), 'image/png');
-    });
-    const pngBytes = await pngBlob.arrayBuffer();
-    const png = await output.embedPng(pngBytes);
-    const page = output.addPage([viewport.width / 2, viewport.height / 2]);
-    page.drawImage(png, { x: 0, y: 0, width: page.getWidth(), height: page.getHeight() });
+import { downloadBytes } from './download';
+export async function buildAnnotatedPdf(pdfDoc:PDFDocumentProxy, source:Uint8Array):Promise<Uint8Array> {
+  const {PDFDocument,degrees}=await import('pdf-lib');
+  const original=await PDFDocument.load(source); const output=await PDFDocument.create();
+  const pages=await output.copyPages(original,original.getPageIndices());
+  const store=AnnotationStore.getInstance();
+  for(let i=0;i<pages.length;i++) {
+    const target=output.addPage(pages[i]),strokes=store.getStrokesForSlide(i+1);
+    if(!strokes.length) continue;
+    const page=await pdfDoc.getPage(i+1),base=page.getViewport({scale:1});
+    const scale=Math.min(2,4000/Math.max(base.width,base.height));
+    const viewport=page.getViewport({scale});
+    const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+    await prepareImages(strokes);
+    const ctx=canvas.getContext('2d')!;StrokeEngine.renderStrokes(ctx,strokes,canvas.width,canvas.height);
+    const image=await output.embedPng(await (await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('PNG failed')),'image/png'))).arrayBuffer());
+    const a=((target.getRotation().angle%360)+360)%360,w=target.getWidth(),h=target.getHeight();
+    target.drawImage(image,{x:a===90||a===180?w:0,y:a===180||a===270?h:0,width:base.width,height:base.height,rotate:degrees(a)});
+    canvas.width=canvas.height=0;
   }
-
-  const bytes = await output.save();
-  const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${fileName.replace(/\.pdf$/i, '')}-annotated.pdf`;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return new Uint8Array(await output.save());
+}
+export async function exportAnnotatedPdf(pdfDoc:PDFDocumentProxy,fileName:string,source?:Uint8Array):Promise<void> {
+  const bytes=await buildAnnotatedPdf(pdfDoc,source??await pdfDoc.getData());
+  downloadBytes(bytes,`${fileName.replace(/\.pdf$/i,'')}-annotated.pdf`,'application/pdf');
 }

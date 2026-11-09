@@ -1,3 +1,11 @@
+> 현행 로컬 검토판: **1.5 (2026-11-10)**. GitHub·Microsoft Store 미업로드. [1.5 검증 보고서](docs/maintenance/2026-11-10-v1.5/REPORT.md). 이전 검토판 설명과 충돌하면 아래 1.5 내용이 우선합니다.
+
+> 최신 검토판은 2026-11-09 **1.3 Review4**입니다. 발표 하위 메뉴·컴팩트 팝업·레이저 점/상시 잔상·PDF 너비 맞춤 100%·전환음을 수정하고, 독립 Notebook 파일과 PC용 Drive 동기화 폴더 저장을 추가했습니다. GitHub·Microsoft Store 미업로드. [사용법](USER_GUIDE.md), [검증 보고서](docs/maintenance/2026-11-09-v1.3-review4/REPORT.md). 이전 단계와 충돌하면 Review4가 우선합니다.
+
+> 최신 검토판은 2026-11-09 **1.3 Review3**입니다. 선택·반전·회전, 숫자 조절 메뉴와 Notebook 다중 노트·너비 맞춤·PDF 불러오기를 반영했습니다. 현행 동작: [사용법](USER_GUIDE.md), [검증 보고서](docs/maintenance/2026-11-09-v1.3-review3/REPORT.md).
+
+> 2026-11-08 Review2: 원형 메뉴·차임벨·폭탄을 제거하고 하단 공통 직선 도구바로 통일했습니다. 노트는 전체 작업 화면으로 전환하며 스프링 용지·이미지·링크·두 페이지 보기를 지원합니다. 현행 사용법은 [USER_GUIDE.md](USER_GUIDE.md), 검증은 [Review2 보고서](docs/maintenance/2026-11-08-v1.3-toolbar-notebook/REPORT.md)를 참고하세요. 이전 단계 기록과 충돌하면 Review2가 우선합니다.
+
 # PDF Presentation Player - 시스템 아키텍처 (ARCHITECTURE.md)
 
 ## 1. 기술 스택 검토 및 선정 이유
@@ -158,3 +166,7 @@ interface AnnotationStroke {
 ## 1.2 PDF 보기 구조
 
 `pdfViewport.ts`가 PDF 포인트를 96/72 CSS 픽셀로 환산하고 맞춤·사용자 배율 및 확대 기준점의 스크롤 위치를 계산합니다. `TransitionContainer`의 실제 viewport 크기는 ResizeObserver로 읽습니다. PDF·필기·효과는 같은 스크롤 콘텐츠 안에 배치합니다. 렌더링 밀도는 일반 화면에서 최소 2배, 최대 3배이며 캔버스 16MP·변 길이 16384px 제한에 따라 낮아질 수 있습니다. PDF 캐시는 96MiB와 16항목 제한을 함께 적용합니다.
+
+## 1.3 변경
+
+스포트라이트 및 자동 숨김 하단 발표 툴바를 제거하고 `RadialMenu`로 교체했습니다. `NotebookPanel`은 별도 AnnotationStore를 주입하며 PDF 본문 필기와 저장 키를 분리합니다. `pdfEditing`이 pdf-lib으로 실제 PDF를 편집한 뒤 페이지 매핑을 반환하고, App이 필기·발표 메모·전환을 함께 재배치합니다. PDF 본문을 포함한 1.3 프로젝트와 기존 프로젝트를 함께 지원합니다. 자세한 현행 구조는 1.3 유지보수 보고서를 따릅니다.
