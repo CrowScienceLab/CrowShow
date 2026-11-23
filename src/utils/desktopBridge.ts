@@ -11,16 +11,46 @@ export interface DesktopPdfPayload {
 interface UpdateCheckResult {
   status: 'current' | 'available' | 'no-release' | 'error' | 'store';
   version?: string;
-  assetName?: string;
-  assetUrl?: string;
-  checksumUrl?: string;
-  releaseUrl?: string;
   error?: string;
 }
 
 const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
 export const isDesktopApp = () => isTauri() || Boolean(window.crowShowDesktop);
+
+export const supportsKoreanDocuments = isTauri;
+
+export function koreanDocumentFormat(name: string): 'hwp' | 'hwpx' | undefined {
+  const extension = name.split('.').at(-1)?.toLowerCase();
+  if (name.includes('.') && (extension === 'hwp' || extension === 'hwpx')) return extension;
+}
+
+export async function convertKoreanDocument(file: File, format: 'hwp' | 'hwpx', refresh = false) {
+  if (!supportsKoreanDocuments()) throw new Error('한글 문서는 PC용 CrowShow에서 열 수 있습니다.');
+  if (file.size > 64 * 1024 * 1024) throw new Error('한글 문서는 64 MB까지 열 수 있습니다.');
+  const { invoke } = await import('@tauri-apps/api/core');
+  const response = await invoke<ArrayBuffer>('convert_hwp_to_pdf', await file.arrayBuffer(), {
+    headers: {
+      'x-crowshow-document-format': format,
+      'x-crowshow-refresh': refresh ? '1' : '0',
+    },
+  });
+  const [status] = new Uint8Array(response, 0, 1);
+  const bytes = new Uint8Array(response, 1);
+  if (status === 0) return { bytes, layout: 'passed' as const };
+  return { bytes, layout: status === 1 ? 'overlap' as const : 'unavailable' as const };
+}
+
+export async function clearHwpConversionCache(): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('clear_hwp_conversion_cache');
+}
+
+export async function resizeWorkspaceWindow(workspace: boolean): Promise<void> {
+  if (!isTauri()) return;
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('resize_workspace_window', { workspace });
+}
 
 export async function getInitialDesktopPdf(): Promise<DesktopPdfPayload | null> {
   if (isTauri()) {
@@ -68,16 +98,11 @@ export async function checkForDesktopUpdates(manual = true): Promise<void> {
         if (manual) alert('게시된 정식 릴리스가 아직 없습니다.');
         return;
       }
-      if (update.status !== 'available') throw new Error(update.error || '업데이트 정보를 확인할 수 없습니다.');
+      if (update.status !== 'available' || !update.version) throw new Error(update.error || '업데이트 정보를 확인할 수 없습니다.');
       if (!confirm(`CrowShow v${update.version} 업데이트를 다운로드하고 설치하시겠습니까?`)) return;
       installing = true;
       await flushInk(true);
-      await invoke('download_and_install_update', {
-        version: update.version,
-        assetName: update.assetName,
-        assetUrl: update.assetUrl,
-        checksumUrl: update.checksumUrl,
-      });
+      await invoke('download_and_install_update', { version: update.version });
     } catch (error) {
       console.error(error);
       if (manual || installing) alert(`업데이트 ${installing ? '다운로드·설치' : '확인'}에 실패했습니다.\n${String(error)}\n${storeSource?'Microsoft Store 라이브러리에서 다시 확인하세요.':'공식 릴리스: https://github.com/CrowScienceLab/CrowShow/releases/latest'}`);

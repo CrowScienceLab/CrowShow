@@ -26,5 +26,5 @@ export async function buildAnnotatedPdf(pdfDoc:PDFDocumentProxy, source:Uint8Arr
 }
 export async function exportAnnotatedPdf(pdfDoc:PDFDocumentProxy,fileName:string,source?:Uint8Array):Promise<void> {
   const bytes=await buildAnnotatedPdf(pdfDoc,source??await pdfDoc.getData());
-  downloadBytes(bytes,`${fileName.replace(/\.pdf$/i,'')}-annotated.pdf`,'application/pdf');
+  downloadBytes(bytes,`${fileName.replace(/\.(pdf|hwp|hwpx)$/i,'')}-annotated.pdf`,'application/pdf');
 }

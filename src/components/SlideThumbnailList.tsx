@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { PdfRenderer } from '../pdf/pdfRenderer';
 import { PanelLeftClose, PanelLeftOpen, RotateCw, Copy, Trash2, Plus, FilePlus, Undo2, Redo2 } from 'lucide-react';
@@ -82,6 +82,7 @@ export const SlideThumbnailList: React.FC<SlideThumbnailListProps> = ({
   onToggleOpen,
   onSelectSlide, onEdit, onInsert, busy, onRestore, onSave, canRestore, onUndo, onRedo, canUndo, canRedo,
 }) => {
+  const [dragOverPage, setDragOverPage] = useState<number | null>(null);
   if (!isOpen) {
     return (
       <button
@@ -118,7 +119,7 @@ export const SlideThumbnailList: React.FC<SlideThumbnailListProps> = ({
         <button title="페이지 편집 실행 취소" disabled={busy||!canUndo} onClick={onUndo}><Undo2 size={15}/></button><button title="페이지 편집 다시 실행" disabled={busy||!canRedo} onClick={onRedo}><Redo2 size={15}/></button>
       </div><div className="page-file-actions"><button disabled={busy||!canRestore} title="PDF를 열었을 때의 페이지와 필기로 복원" onClick={onRestore}>수정전 복원</button><button disabled={busy} title="수정한 페이지를 PDF로 저장 · 필기 제외" onClick={onSave}>PDF 저장</button>      </div><div className="thumbnail-scroll-area">
         {slides.map((pageNumber) => (
-          <div key={pageNumber} draggable={!busy} onDragStart={e=>{e.dataTransfer.setData('application/crowshow-page',String(pageNumber));e.dataTransfer.effectAllowed='move';}} onDragOver={e=>{if(e.dataTransfer.types.includes('application/crowshow-page')){e.preventDefault();e.dataTransfer.dropEffect='move';}}} onDrop={e=>{const from=Number(e.dataTransfer.getData('application/crowshow-page'));if(from){e.preventDefault();e.stopPropagation();if(!busy&&from!==pageNumber)onEdit('move',from,pageNumber);}}}>
+          <div key={pageNumber} className={`thumbnail-drag-slot ${dragOverPage===pageNumber?'drag-over':''}`} draggable={!busy} onDragStart={e=>{e.dataTransfer.setData('application/crowshow-page',String(pageNumber));e.dataTransfer.effectAllowed='move';}} onDragEnd={()=>setDragOverPage(null)} onDragOver={e=>{if(e.dataTransfer.types.includes('application/crowshow-page')){e.preventDefault();e.dataTransfer.dropEffect='move';setDragOverPage(pageNumber);}}} onDragLeave={()=>{setDragOverPage(curr=>curr===pageNumber?null:curr);}} onDrop={e=>{const from=Number(e.dataTransfer.getData('application/crowshow-page'));setDragOverPage(null);if(from){e.preventDefault();e.stopPropagation();if(!busy&&from!==pageNumber)onEdit('move',from,pageNumber);}}}>
           <ThumbnailItem
             pdfDoc={pdfDoc}
             pageNumber={pageNumber}

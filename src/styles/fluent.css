@@ -1,6 +1,6 @@
 /* Fluent Design System Tokens & Global Styling */
 :root {
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Display', 'Segoe UI', 'Inter', Roboto, Helvetica, Arial, sans-serif;
+  --font-family: 'Pretendard Variable', 'Pretendard', 'Segoe UI Variable Text', 'Segoe UI Variable Display', 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Inter', system-ui, sans-serif;
   
   /* Accent colors */
   --accent-primary: #2563eb;

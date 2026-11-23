@@ -22,3 +22,14 @@ CrowShow의 검지손가락 도형은 Google Material Icons의 `touch_app` SVG �
 - License text: https://www.apache.org/licenses/LICENSE-2.0
 
 Copyright Google LLC. Licensed under the Apache License, Version 2.0.
+
+## rhwp
+
+CrowShow for Windows builds rhwp v0.9.1 with a local layout patch to convert
+HWP and HWPX documents to PDF locally. rhwp is distributed under the MIT
+License, copyright (c) 2025-2026 Edward Kim. The source patch is included
+with the executable and is also available in `scripts/patches/`.
+
+- Release: https://github.com/edwardkim/rhwp/releases/tag/v0.9.1
+- License: distributed as `rhwp/LICENSE`
+- Component and font notices: distributed under `rhwp/notices/`

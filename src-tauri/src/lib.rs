@@ -1,18 +1,23 @@
+mod hwp_cache;
+mod hwp_conversion;
 mod notebook_files;
 mod store_updates;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
     sync::Mutex,
 };
-use tauri::{Emitter, Manager, State};
+use tauri::{Emitter, LogicalSize, Manager, State, WebviewWindow};
 
 const REPOSITORY: &str = "CrowScienceLab/CrowShow";
 const RELEASE_API: &str = "https://api.github.com/repos/CrowScienceLab/CrowShow/releases/latest";
 const MAX_INSTALLER_BYTES: usize = 350 * 1024 * 1024;
+const MAX_RELEASE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_CHECKSUM_BYTES: usize = 64 * 1024;
 
 struct PendingPdf(Mutex<Option<PathBuf>>);
 
@@ -34,7 +39,8 @@ struct ReleaseAsset {
 #[derive(Deserialize)]
 struct GithubRelease {
     tag_name: String,
-    html_url: String,
+    draft: bool,
+    prerelease: bool,
     assets: Vec<ReleaseAsset>,
 }
 
@@ -43,10 +49,6 @@ struct GithubRelease {
 struct UpdateCheckResult {
     status: String,
     version: Option<String>,
-    asset_name: Option<String>,
-    asset_url: Option<String>,
-    checksum_url: Option<String>,
-    release_url: Option<String>,
     error: Option<String>,
 }
 
@@ -85,33 +87,130 @@ fn read_pdf(path: &Path) -> Result<PdfPayload, String> {
     })
 }
 
-fn normalize_version(value: &str) -> Vec<u32> {
-    value
-        .trim_start_matches(['v', 'V'])
-        .split('-')
-        .next()
-        .unwrap_or(value)
-        .split('.')
-        .map(|part| part.parse::<u32>().unwrap_or(0))
-        .collect()
-}
-
-fn is_newer_version(latest: &str, current: &str) -> bool {
-    let mut left = normalize_version(latest);
-    let mut right = normalize_version(current);
-    let len = left.len().max(right.len()).max(3);
-    left.resize(len, 0);
-    right.resize(len, 0);
-    left > right
+fn parse_release_version(tag: &str) -> Option<[u32; 3]> {
+    let version = tag.strip_prefix(['v', 'V']).unwrap_or(tag);
+    let mut parts = version.split('.');
+    let number = |part: &str| {
+        part.bytes()
+            .all(|byte| byte.is_ascii_digit())
+            .then(|| part.parse().ok())?
+    };
+    let major = number(parts.next()?)?;
+    let minor = number(parts.next()?)?;
+    let patch = match parts.next() {
+        Some(part) => number(part)?,
+        None => 0,
+    };
+    parts.next().is_none().then_some([major, minor, patch])
 }
 
 fn github_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(format!("CrowShow/{}", env!("CARGO_PKG_VERSION")))
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            let url = attempt.url();
+            if attempt.previous().len() <= 3
+                && attempt.previous().first().and_then(reqwest::Url::host_str) == Some("github.com")
+                && url.scheme() == "https"
+                && url.port().is_none()
+                && url.username().is_empty()
+                && url.password().is_none()
+                && matches!(
+                    url.host_str(),
+                    Some("release-assets.githubusercontent.com" | "objects.githubusercontent.com")
+                )
+            {
+                attempt.follow()
+            } else {
+                attempt.error("Unexpected GitHub release redirect")
+            }
+        }))
         .connect_timeout(std::time::Duration::from_secs(20))
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|error| error.to_string())
+}
+
+async fn read_github_body(
+    mut response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, String> {
+    response = response
+        .error_for_status()
+        .map_err(|error| error.to_string())?;
+    if response
+        .content_length()
+        .is_some_and(|size| size > limit as u64)
+    {
+        return Err("업데이트 응답이 허용 크기를 초과했습니다.".into());
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+        if chunk.len() > limit - body.len() {
+            return Err("업데이트 응답이 허용 크기를 초과했습니다.".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+async fn latest_release(client: &reqwest::Client) -> Result<Option<GithubRelease>, String> {
+    let response = client
+        .get(RELEASE_API)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let release: GithubRelease =
+        serde_json::from_slice(&read_github_body(response, MAX_RELEASE_BYTES).await?)
+            .map_err(|error| error.to_string())?;
+    Ok((!release.draft
+        && !release.prerelease
+        && parse_release_version(&release.tag_name).is_some())
+    .then_some(release))
+}
+
+fn validate_release_asset(tag: &str, asset: &ReleaseAsset) -> bool {
+    asset
+        .name
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+        && asset.browser_download_url
+            == format!(
+                "https://github.com/{REPOSITORY}/releases/download/{tag}/{}",
+                asset.name
+            )
+}
+
+fn update_assets(release: &GithubRelease) -> Option<(&ReleaseAsset, &ReleaseAsset)> {
+    let release_version = parse_release_version(&release.tag_name)?;
+    let installer = release.assets.iter().find(|asset| {
+        let name = asset.name.to_ascii_lowercase();
+        name.strip_prefix("crowshow-v")
+            .and_then(|version| version.strip_suffix("-setup-x64.exe"))
+            .and_then(parse_release_version)
+            == Some(release_version)
+            && asset.size > 0
+            && asset.size <= MAX_INSTALLER_BYTES
+            && validate_release_asset(&release.tag_name, asset)
+    });
+    let eligible_checksums = release.assets.iter().filter(|asset| {
+        asset.size > 0
+            && asset.size <= MAX_CHECKSUM_BYTES
+            && validate_release_asset(&release.tag_name, asset)
+    });
+    let checksums = eligible_checksums
+        .clone()
+        .find(|asset| asset.name.eq_ignore_ascii_case("SHA256SUMS.txt"))
+        .or_else(|| {
+            eligible_checksums.into_iter().find(|asset| {
+                let name = asset.name.to_ascii_lowercase();
+                name.starts_with("sha256sums-v") && name.ends_with(".txt")
+            })
+        });
+    installer.zip(checksums)
 }
 
 #[tauri::command]
@@ -122,94 +221,31 @@ fn get_initial_pdf(state: State<'_, PendingPdf>) -> Result<Option<PdfPayload>, S
 
 #[tauri::command]
 async fn check_for_updates() -> Result<UpdateCheckResult, String> {
+    let current = env!("CARGO_PKG_VERSION");
+    let result = |status: &str, version, error| UpdateCheckResult {
+        status: status.into(),
+        version,
+        error,
+    };
     if cfg!(feature = "microsoft-store") {
-        return Ok(UpdateCheckResult {
-            status: "store".into(),
-            version: Some(env!("CARGO_PKG_VERSION").into()),
-            asset_name: None,
-            asset_url: None,
-            checksum_url: None,
-            release_url: Some("https://apps.microsoft.com/detail/9N2G0ST27LBW".into()),
-            error: None,
-        });
+        return Ok(result("store", Some(current.into()), None));
     }
-    let response = github_client()?
-        .get(RELEASE_API)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?;
-    if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(UpdateCheckResult {
-            status: "no-release".into(),
-            version: None,
-            asset_name: None,
-            asset_url: None,
-            checksum_url: None,
-            release_url: None,
-            error: None,
-        });
+    let Some(release) = latest_release(&github_client()?).await? else {
+        return Ok(result("no-release", None, None));
+    };
+    if parse_release_version(&release.tag_name) <= parse_release_version(current) {
+        return Ok(result("current", Some(current.into()), None));
     }
-    let release = response
-        .error_for_status()
-        .map_err(|error| error.to_string())?
-        .json::<GithubRelease>()
-        .await
-        .map_err(|error| error.to_string())?;
     let version = release.tag_name.trim_start_matches(['v', 'V']).to_string();
-    if !is_newer_version(&version, env!("CARGO_PKG_VERSION")) {
-        return Ok(UpdateCheckResult {
-            status: "current".into(),
-            version: Some(env!("CARGO_PKG_VERSION").to_string()),
-            asset_name: None,
-            asset_url: None,
-            checksum_url: None,
-            release_url: Some(release.html_url),
-            error: None,
-        });
+    if update_assets(&release).is_some() {
+        Ok(result("available", Some(version), None))
+    } else {
+        Ok(result(
+            "error",
+            Some(version),
+            Some("검증 가능한 Windows 설치 파일이 없습니다.".into()),
+        ))
     }
-    let installer = release.assets.iter().find(|asset| {
-        let lower = asset.name.to_ascii_lowercase();
-        lower.starts_with("crowshow-v")
-            && lower.ends_with("-setup-x64.exe")
-            && asset.size > 0
-            && asset.size <= MAX_INSTALLER_BYTES
-    });
-    let checksums = release
-        .assets
-        .iter()
-        .find(|asset| asset.name.eq_ignore_ascii_case("SHA256SUMS.txt"))
-        .or_else(|| {
-            release.assets.iter().find(|asset| {
-                let name = asset.name.to_ascii_lowercase();
-                name.starts_with("sha256sums-v") && name.ends_with(".txt")
-            })
-        });
-    match (installer, checksums) {
-        (Some(installer), Some(checksums)) => Ok(UpdateCheckResult {
-            status: "available".into(),
-            version: Some(version),
-            asset_name: Some(installer.name.clone()),
-            asset_url: Some(installer.browser_download_url.clone()),
-            checksum_url: Some(checksums.browser_download_url.clone()),
-            release_url: Some(release.html_url),
-            error: None,
-        }),
-        _ => Ok(UpdateCheckResult {
-            status: "error".into(),
-            version: Some(version),
-            asset_name: None,
-            asset_url: None,
-            checksum_url: None,
-            release_url: Some(release.html_url),
-            error: Some("검증 가능한 Windows 설치 파일이 없습니다.".into()),
-        }),
-    }
-}
-
-fn validate_release_url(url: &str) -> bool {
-    url.starts_with(&format!(
-        "https://github.com/{REPOSITORY}/releases/download/"
-    ))
 }
 
 fn expected_checksum(checksums: &str, asset_name: &str) -> Result<String, String> {
@@ -228,67 +264,50 @@ fn expected_checksum(checksums: &str, asset_name: &str) -> Result<String, String
 }
 
 #[tauri::command]
-async fn download_and_install_update(
-    app: tauri::AppHandle,
-    version: String,
-    asset_name: String,
-    asset_url: String,
-    checksum_url: String,
-) -> Result<(), String> {
+async fn download_and_install_update(app: tauri::AppHandle, version: String) -> Result<(), String> {
     if cfg!(feature = "microsoft-store") {
         return Err("Microsoft Store 설치본은 스토어에서 업데이트합니다.".into());
     }
-    if !validate_release_url(&asset_url)
-        || !validate_release_url(&checksum_url)
-        || !asset_name.to_ascii_lowercase().starts_with("crowshow-v")
-        || !asset_name.to_ascii_lowercase().ends_with("-setup-x64.exe")
-        || asset_name.contains(['/', '\\'])
-        || version.is_empty()
-        || !version
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || byte == b'.')
-        || asset_url.rsplit('/').next() != Some(asset_name.as_str())
-        || asset_url.rsplit_once('/').map(|(base, _)| base)
-            != checksum_url.rsplit_once('/').map(|(base, _)| base)
-    {
-        return Err("공식 CrowShow 릴리스 주소가 아닙니다.".into());
-    }
     let client = github_client()?;
-    let installer = client
-        .get(&asset_url)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .error_for_status()
-        .map_err(|error| error.to_string())?
-        .bytes()
-        .await
-        .map_err(|error| error.to_string())?;
-    if installer.len() > MAX_INSTALLER_BYTES {
-        return Err("설치 파일 크기가 허용 범위를 초과했습니다.".into());
+    let release = latest_release(&client)
+        .await?
+        .ok_or("정식 릴리스를 찾을 수 없습니다.")?;
+    if release.tag_name.trim_start_matches(['v', 'V']) != version
+        || parse_release_version(&release.tag_name)
+            <= parse_release_version(env!("CARGO_PKG_VERSION"))
+    {
+        return Err("업데이트 버전이 변경됐습니다. 다시 확인하세요.".into());
     }
-    let checksums = client
-        .get(&checksum_url)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?
-        .error_for_status()
-        .map_err(|error| error.to_string())?
-        .text()
+    let (asset, checksum) =
+        update_assets(&release).ok_or("검증 가능한 Windows 설치 파일이 없습니다.")?;
+
+    let download = |asset: &ReleaseAsset| client.get(&asset.browser_download_url).send();
+    let response = download(checksum)
         .await
         .map_err(|error| error.to_string())?;
-    let expected = expected_checksum(&checksums, &asset_name)?;
+    let checksums = String::from_utf8(read_github_body(response, checksum.size).await?)
+        .map_err(|error| error.to_string())?;
+    let expected = expected_checksum(&checksums, &asset.name)?;
+    let response = download(asset).await.map_err(|error| error.to_string())?;
+    let installer = read_github_body(response, asset.size).await?;
     let actual = format!("{:x}", Sha256::digest(&installer));
-    if actual != expected {
-        return Err("설치 파일 SHA-256 검증에 실패했습니다.".into());
+    if installer.len() != asset.size || actual != expected {
+        return Err("설치 파일 크기 또는 SHA-256 검증에 실패했습니다.".into());
     }
-    let update_dir = std::env::temp_dir().join("CrowShow-updates").join(version);
-    fs::create_dir_all(&update_dir).map_err(|error| error.to_string())?;
-    let installer_path = update_dir.join(asset_name);
-    fs::write(&installer_path, installer).map_err(|error| error.to_string())?;
+
+    let update_dir = tempfile::Builder::new()
+        .prefix("CrowShow-update-")
+        .tempdir()
+        .map_err(|error| error.to_string())?;
+    let installer_path = update_dir.path().join(&asset.name);
+    let mut file = fs::File::create_new(&installer_path).map_err(|error| error.to_string())?;
+    file.write_all(&installer)
+        .map_err(|error| error.to_string())?;
+    drop(file);
     Command::new(&installer_path)
         .spawn()
         .map_err(|error| error.to_string())?;
+    let _ = update_dir.keep();
     app.exit(0);
     Ok(())
 }
@@ -299,10 +318,13 @@ mod tests {
 
     #[test]
     fn update_versions_and_checksums() {
-        assert!(is_newer_version("v1.1.0", "1.0.5"));
-        assert!(is_newer_version("v1.0.5", "1.0.0"));
-        assert!(!is_newer_version("v1.1", "1.1.0"));
-        assert!(!is_newer_version("v1.0.5", "1.1.0"));
+        assert!(parse_release_version("v1.1.0") > parse_release_version("1.0.5"));
+        assert_eq!(
+            parse_release_version("v1.1"),
+            parse_release_version("1.1.0")
+        );
+        assert!(parse_release_version("v1.1.0-rc.1").is_none());
+        assert!(parse_release_version("v1.1.0.0").is_none());
         let hash = "a".repeat(64);
         let name = "CrowShow-v1.1-Setup-x64.exe";
         assert_eq!(
@@ -315,13 +337,68 @@ mod tests {
         );
         assert!(expected_checksum(&format!("{hash} wrong.exe"), name).is_err());
         assert!(expected_checksum(&format!("invalid {name}"), name).is_err());
-        assert!(validate_release_url(
-            "https://github.com/CrowScienceLab/CrowShow/releases/download/v1.1.0/SHA256SUMS.txt"
-        ));
-        assert!(!validate_release_url(
-            "https://github.com/Other/CrowShow/releases/download/v1.1.0/SHA256SUMS.txt"
-        ));
     }
+
+    #[test]
+    fn selects_matching_official_release_assets() {
+        let tag = "v1.6.0";
+        let asset = |repository: &str, name: &str| ReleaseAsset {
+            name: name.into(),
+            browser_download_url: format!(
+                "https://github.com/{repository}/releases/download/{tag}/{name}"
+            ),
+            size: 1024,
+        };
+        let mut release = GithubRelease {
+            tag_name: tag.into(),
+            draft: false,
+            prerelease: false,
+            assets: vec![
+                asset(REPOSITORY, "CrowShow-v1.5-Setup-x64.exe"),
+                asset(REPOSITORY, "CrowShow-v1.6-Setup-x64.exe"),
+                asset(REPOSITORY, "SHA256SUMS.txt"),
+            ],
+        };
+        assert_eq!(
+            update_assets(&release).unwrap().0.name,
+            "CrowShow-v1.6-Setup-x64.exe"
+        );
+        release.assets[1] = asset("Other/CrowShow", "CrowShow-v1.6-Setup-x64.exe");
+        assert!(update_assets(&release).is_none());
+    }
+}
+
+#[tauri::command]
+fn resize_workspace_window(window: WebviewWindow, workspace: bool) -> Result<(), String> {
+    if window.label() != "main" {
+        return Ok(());
+    }
+    let resize = || -> tauri::Result<()> {
+        let (mut width, mut height, min_width, min_height): (f64, f64, f64, f64) = if workspace {
+            (1440.0, 900.0, 760.0, 520.0)
+        } else {
+            (548.0, 420.0, 480.0, 360.0)
+        };
+        if let Some(monitor) = window.current_monitor()? {
+            let work = monitor
+                .work_area()
+                .size
+                .to_logical::<f64>(monitor.scale_factor());
+            // Tauri sizes the client area. Leave room for the Windows title bar and borders.
+            width = width.min((work.width - 24.0).max(1.0));
+            height = height.min((work.height - 48.0).max(1.0));
+        }
+        if window.is_maximized()? {
+            window.unmaximize()?;
+        }
+        window.set_min_size(Some(LogicalSize::new(
+            min_width.min(width),
+            min_height.min(height),
+        )))?;
+        window.set_size(LogicalSize::new(width, height))?;
+        window.center()
+    };
+    resize().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -379,10 +456,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            hwp_conversion::convert_hwp_to_pdf,
+            hwp_conversion::clear_hwp_conversion_cache,
             get_initial_pdf,
             check_for_updates,
             store_updates::store_package_update,
             download_and_install_update,
+            resize_workspace_window,
             open_pdf_defaults,
             open_external_url,
             notebook_files::notebook_storage_status,

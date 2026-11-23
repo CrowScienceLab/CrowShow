@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -8,6 +8,8 @@ interface ConfirmModalProps {
   cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
+  onSecondaryAction?: () => void;
+  confirmStyle?: 'primary' | 'danger';
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -17,16 +19,30 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   cancelLabel = '취소',
   onConfirm,
   onCancel,
+  onSecondaryAction,
+  confirmStyle = 'danger',
 }) => {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onCancel]);
+
   return (
     <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal-card modal-card-sm" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="title-with-icon">
             <AlertTriangle size={18} className="text-warning" />
             <h3>{title}</h3>
           </div>
-          <button className="icon-btn-sm" onClick={onCancel}>
+          <button className="icon-btn-sm" onClick={onCancel} aria-label="닫기">
             <X size={16} />
           </button>
         </div>
@@ -36,11 +52,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </div>
 
         <div className="modal-footer">
-          <button className="btn-secondary" onClick={onCancel}>
+          <button className="btn-secondary" onClick={onSecondaryAction ?? onCancel}>
             {cancelLabel}
           </button>
           <button
-            className="btn-danger"
+            className={confirmStyle === 'primary' ? 'btn-primary' : 'btn-danger'}
             onClick={() => {
               onConfirm();
               onCancel();

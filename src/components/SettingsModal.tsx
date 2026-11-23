@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { AppSettings } from '../types/settings';
 import type { TransitionType } from '../types/presentation';
 import { Settings, X, Moon, Sun, Palette, RefreshCw, FileType2 } from 'lucide-react';
@@ -9,6 +9,8 @@ interface SettingsModalProps {
   desktopAvailable: boolean;
   onCheckUpdates: () => void;
   onOpenPdfDefaults: () => void;
+  onClearHwpCache?: () => void;
+  onOpenHwpFresh?: () => void;
   onClose: () => void;
 }
 
@@ -18,17 +20,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   desktopAvailable,
   onCheckUpdates,
   onOpenPdfDefaults,
+  onClearHwpCache,
+  onOpenHwpFresh,
   onClose,
 }) => {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card settings-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card settings-modal-card" role="dialog" aria-modal="true" aria-label="환경 설정" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="title-with-icon">
             <Settings size={20} className="text-accent" />
             <h3>환경 설정</h3>
           </div>
-          <button className="icon-btn-sm" onClick={onClose}>
+          <button className="icon-btn-sm" onClick={onClose} aria-label="환경 설정 닫기" title="닫기 (Esc)">
             <X size={18} />
           </button>
         </div>
@@ -150,7 +166,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div className="settings-row settings-about-row">
             <div className="settings-label-group" style={{ width: '100%' }}>
-              <span className="settings-label">CrowShow v1.5 · Crow Science Lab</span>
+              <span className="settings-label">CrowShow v2.0 · Crow Science Lab</span>
               <span className="settings-desc">
                 오프라인 PDF 수업을 위한 프레젠테이션 플레이어
               </span>
@@ -177,6 +193,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <FileType2 size={16} />
                     <span>PDF 기본 앱 설정</span>
                   </button>
+                  {onOpenHwpFresh && <button className="btn-secondary" onClick={onOpenHwpFresh}>캐시 없이 한글 문서 열기</button>}
+                  {onClearHwpCache && <button className="btn-secondary" onClick={onClearHwpCache}>한글 변환 캐시 비우기</button>}
                 </div>
               )}
             </div>

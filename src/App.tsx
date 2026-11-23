@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useEffectEvent, useRef, useCallback } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { PdfDocumentInfo, RecentPdfDocument } from './types/pdf';
 import type { ToolType, ShapeType } from './types/annotation';
 import type { ViewMode, ScreenCurtain, TransitionType, SlideTransitionConfig } from './types/presentation';
 import type { AppSettings } from './types/settings';
 import { loadNotebook, saveNotebook } from './utils/notebookStorage';
+import { readNotebookFile } from './utils/notebookFile';
 import { flushInk } from './utils/inkStorage';
 import { HelpDialog } from './components/HelpDialog';
 import { DEFAULT_SETTINGS } from './types/settings';
@@ -20,10 +21,15 @@ import { savePdfDocument, loadPdfDocument } from './utils/documentStore';
 import { exportAnnotatedPdf } from './utils/exportAnnotatedPdf';
 import {
   checkForDesktopUpdates,
+  clearHwpConversionCache,
+  convertKoreanDocument,
   getInitialDesktopPdf,
   isDesktopApp,
+  koreanDocumentFormat,
   onDesktopOpenPdf,
   openPdfDefaultApps,
+  resizeWorkspaceWindow,
+  supportsKoreanDocuments,
   type DesktopPdfPayload,
 } from './utils/desktopBridge';
 
@@ -36,11 +42,12 @@ import { NotebookPanel, type NotebookHandle, type NoteStatus } from './component
 import { PrintDialog } from './components/PrintDialog';
 import type { NotebookData } from './types/notebook';
 import type { SlideAnnotationMap, EraserMode } from './types/annotation';
-import { editPdf, remapAnnotations, remapPages, type PageEdit } from './utils/pdfEditing';
+import { editPdf, fitPdfToA4, remapAnnotations, remapPages, type PageEdit } from './utils/pdfEditing';
 import { downloadBytes, encodePdf, decodePdf } from './utils/download';
 import type { ToolDockProps } from './components/ToolDock';
 import { readProject } from './utils/projectValidation';
 interface DocumentSnapshot {bytes:Uint8Array;annotations:SlideAnnotationMap;notes:Record<number,string>;transitions:Record<number,TransitionType>;slide:number;notebook:NotebookData|null;}
+const STANDALONE_NOTEBOOK_ID = 'standalone';
 
 import { TransitionContainer } from './transitions/transitionContainer';
 import { SlideNavButtons } from './components/SlideNavButtons';
@@ -53,6 +60,7 @@ import './styles/fluent.css';
 import './styles/v13.css';
 import './styles/workspace.css';
 import './styles/v15.css';
+import './styles/v16.css';
 
 export const App: React.FC = () => {
   // --- SOUND ENGINE ---
@@ -137,7 +145,26 @@ export const App: React.FC = () => {
 
   const [eraserMode,setEraserMode]=useState<EraserMode>('object');
   const [notebook,setNotebook]=useState<NotebookData|null>(null);
+  const [standaloneNotebook, setStandaloneNotebook] = useState<NotebookData | null>(null);
+  const [standaloneLoading, setStandaloneLoading] = useState(true);
+  const [notebookRevision, setNotebookRevision] = useState(0);
+  const standaloneLoad = useRef<Promise<NotebookData | null> | null>(null);
+  const openStandalone = useCallback(() => {
+    standaloneLoad.current ??= loadNotebook(STANDALONE_NOTEBOOK_ID).then(data => {
+      setStandaloneNotebook(data);
+      return data;
+    }).catch(error => {
+      standaloneLoad.current = null;
+      throw error;
+    }).finally(() => setStandaloneLoading(false));
+    return standaloneLoad.current;
+  }, []);
+  useEffect(() => { void openStandalone().catch(error => console.warn('Notebook load:', error)); }, [openStandalone]);
   const [notesOpen,setNotesOpen]=useState(false);
+  const toggleNotebook = useCallback(() => {
+    if (docInfo || notesOpen) setNotesOpen(open => !open);
+    else void openStandalone().then(() => setNotesOpen(true)).catch(() => alert('자동 저장 노트를 읽을 수 없습니다.'));
+  }, [docInfo, notesOpen, openStandalone]);
   const [noteStore]=useState(()=>new AnnotationStore(false));
   const [printOpen,setPrintOpen]=useState(false);
   const [noteStorageError,setNoteStorageError]=useState(false);
@@ -162,18 +189,38 @@ export const App: React.FC = () => {
   const annotationStore = AnnotationStore.getInstance();
   const pdfCache = PdfCache.getInstance();
   const activeStore=notesOpen?noteStore:annotationStore;
+  const notebookId = docInfo?.id ?? STANDALONE_NOTEBOOK_ID;
+  const activeNotebook = docInfo ? notebook : standaloneNotebook;
+  const changeNotebook = docInfo ? setNotebook : setStandaloneNotebook;
+  const inWorkspace = Boolean(docInfo) || notesOpen;
+  useEffect(() => {
+    void resizeWorkspaceWindow(inWorkspace).catch(error => console.warn('Window resize:', error));
+  }, [inWorkspace]);
   useEffect(()=>activeStore.subscribe(()=>{if(!activeStore.isEditing)setAnnotationRevision(n=>n+1);}),[activeStore]);
   // Synchronize the local notebook backup and report storage failures.
   // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(()=>{if(!docInfo||!notebook)return;let active=true;saveNotebook(docInfo.id,notebook,error=>{if(active)setNoteStorageError(!!error)});return()=>{active=false}},[docInfo,notebook]);
+  useEffect(()=>{if(!activeNotebook)return;let active=true;saveNotebook(notebookId,activeNotebook,error=>{if(active)setNoteStorageError(!!error)});return()=>{active=false}},[notebookId,activeNotebook]);
   useEffect(()=>{const flush=()=>{void flushInk()};document.addEventListener('visibilitychange',flush);window.addEventListener('pagehide',flush);let unlisten:(()=>void)|undefined;let disposed=false;if(isDesktopApp())void import('@tauri-apps/api/window').then(async({getCurrentWindow})=>{const stop=await getCurrentWindow().onCloseRequested(async event=>{event.preventDefault();try{await flushInk(true);await getCurrentWindow().destroy()}catch(error){alert(String(error))}});if(disposed)stop();else unlisten=stop;});return()=>{disposed=true;unlisten?.();document.removeEventListener('visibilitychange',flush);window.removeEventListener('pagehide',flush)}},[]);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const referencePdfInputRef = useRef<HTMLInputElement | null>(null);
+  const hwpRefreshInputRef = useRef<HTMLInputElement | null>(null);
+  const [convertingDocument, setConvertingDocument] = useState(false);
+  const [pendingHwpPreview, setPendingHwpPreview] = useState<{
+    bytes: Uint8Array;
+    name: string;
+    size: number;
+    request: number;
+    layout: 'overlap' | 'unavailable';
+  } | null>(null);
+  const conversionInProgress = useRef(false);
   const projectInputRef = useRef<HTMLInputElement | null>(null);
   const audienceWindowRef = useRef<Window | null>(null);
   const audiencePdfRef = useRef<Uint8Array | null>(null);
   const lastWheelNavigationRef = useRef(0);
   const pdfLoadRequestRef = useRef(0);
+  const activePdfIdRef = useRef(docInfo?.id);
+  useEffect(() => { activePdfIdRef.current = docInfo?.id; }, [docInfo]);
 
   // Container dimensions for responsive slide fitting
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -205,9 +252,11 @@ export const App: React.FC = () => {
     buffer: ArrayBuffer | Uint8Array,
     fileName: string,
     size?: number,
-    saveToLibrary = true
+    saveToLibrary = true,
+    request = ++pdfLoadRequestRef.current
   ) => {
-    const request = ++pdfLoadRequestRef.current;
+    if (request !== pdfLoadRequestRef.current) return;
+    setPendingHwpPreview(null);
     try {
       const sourceBytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
       const loader = PdfLoader.getInstance();
@@ -265,6 +314,7 @@ export const App: React.FC = () => {
           alert('PDF는 열렸지만 파일이 커서 최근 파일 보관함에는 저장하지 못했습니다.');
         }
       }
+      return request === pdfLoadRequestRef.current;
     } catch (err) {
       if (request !== pdfLoadRequestRef.current) return;
       console.error('PDF Load Error:', err);
@@ -495,7 +545,8 @@ export const App: React.FC = () => {
           break;
         case 'goToSlide':
           soundEngine.playClick();
-          setShowGoToModal(true);
+          if (notesOpen) document.querySelector<HTMLSelectElement>('[aria-label="노트 페이지"]')?.focus();
+          else if (docInfo) setShowGoToModal(true);
           break;
         case 'undo':
           soundEngine.playClick();
@@ -526,8 +577,8 @@ export const App: React.FC = () => {
         case 'toolText':
           handleSelectTool('text');
           break;
-        case 'toggleNotes': setNotesOpen(v=>!v); break;
-        case 'print': if(viewMode==='normal')setPrintOpen(true); break;
+        case 'toggleNotes': toggleNotebook(); break;
+        case 'print': if(viewMode==='normal' && pdfDoc)setPrintOpen(true); break;
         case 'zoomIn':
           soundEngine.playClick();
           if(notesOpen)notebookRef.current?.zoomStep(1);else stepDisplayZoom(1);
@@ -558,7 +609,7 @@ export const App: React.FC = () => {
     viewMode,
     showGoToModal,
     showSettingsModal,showHelp,
-    printOpen, notesOpen, editBusy,
+    printOpen, notesOpen, editBusy, toggleNotebook, pdfDoc,
     handleNavigate,
     handleStartPresentation,
     handleExitPresentation,
@@ -568,11 +619,42 @@ export const App: React.FC = () => {
     soundEngine,
   ]);
 
-  const handleOpenFile = (file: File) => {
+  const handleOpenFile = async (file: File, refreshHwp = false) => {
     soundEngine.playClick();
-    void file.arrayBuffer().then((buf) => loadPdfData(buf, file.name, file.size)).catch(() => {
-      alert('PDF 파일을 읽을 수 없습니다. 파일 위치와 접근 권한을 확인해 주세요.');
-    });
+    const format = koreanDocumentFormat(file.name);
+    if (format && conversionInProgress.current) {
+      alert('다른 한글 문서를 변환 중입니다. 끝난 뒤 다시 열어 주세요.');
+      return;
+    }
+    const request = ++pdfLoadRequestRef.current;
+    setPendingHwpPreview(null);
+    if (format) {
+      conversionInProgress.current = true;
+      setConvertingDocument(true);
+    }
+    try {
+      if (format) {
+        const { bytes, layout } = await convertKoreanDocument(file, format, refreshHwp);
+        if (request !== pdfLoadRequestRef.current) return;
+        if (layout !== 'passed') {
+          setPendingHwpPreview({ bytes, layout, name: file.name, size: file.size, request });
+          return;
+        }
+        await loadPdfData(bytes, file.name, file.size, true, request);
+      } else {
+        await loadPdfData(await file.arrayBuffer(), file.name, file.size, true, request);
+      }
+    } catch (error) {
+      if (request !== pdfLoadRequestRef.current) return;
+      alert(format
+        ? (error instanceof Error ? error.message : String(error))
+        : 'PDF 파일을 읽을 수 없습니다. 파일 위치와 접근 권한을 확인해 주세요.');
+    } finally {
+      if (format) {
+        conversionInProgress.current = false;
+        setConvertingDocument(false);
+      }
+    }
   };
 
   const handleExportAnnotatedPdf = async () => {
@@ -581,6 +663,17 @@ export const App: React.FC = () => {
     } catch (error) {
       console.error(error);
       alert('필기 포함 PDF를 만드는 중 오류가 발생했습니다.');
+    }
+  };
+
+  const handleExportA4 = async () => {
+    if (!pdfBytes || !docInfo) return;
+    try {
+      const bytes = await fitPdfToA4(pdfBytes);
+      downloadBytes(bytes, docInfo.name.replace(/\.(hwp|hwpx)$/i, '') + '-A4.pdf', 'application/pdf');
+    } catch (error) {
+      console.error(error);
+      alert('A4 PDF를 저장하는 중 오류가 발생했습니다.');
     }
   };
 
@@ -600,7 +693,7 @@ export const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${docInfo.name.replace(/\.pdf$/i, '')}.crowshow`;
+    link.download = `${docInfo.name.replace(/\.(pdf|hwp|hwpx)$/i, '')}.crowshow`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -611,7 +704,10 @@ export const App: React.FC = () => {
       try {
         const project = readProject(String(event.target?.result ?? ''));
         if (!project?.annotations || typeof project.annotations!=='object') throw new Error('Missing annotations');
-        if(project.pdfBase64) await loadPdfData(decodePdf(project.pdfBase64),project.documentName);
+        if(project.pdfBase64) {
+          if (!await loadPdfData(decodePdf(project.pdfBase64),project.documentName)) return;
+        }
+        else if (!docInfo) { alert('이 프로젝트의 원본 PDF를 먼저 여세요.'); return; }
         else if(docInfo&&(project.totalSlides!==docInfo.totalSlides||project.documentName!==docInfo.name)&&!window.confirm('현재 PDF와 다른 프로젝트입니다. 필기와 메모를 불러올까요?'))return;
         setNotebook(project.notebook??null);
         if(originalDocumentRef.current)originalDocumentRef.current={...originalDocumentRef.current,annotations:project.annotations,notes:project.speakerNotes||{},transitions:(project.slideTransitions||{}) as Record<number,TransitionType>,notebook:project.notebook||null};
@@ -683,57 +779,51 @@ export const App: React.FC = () => {
     }
   };
 
+  const openDroppedFile = useEffectEvent((event: DragEvent) => {
+    event.preventDefault();
+    const file = event.dataTransfer?.files[0];
+    if (!file) return;
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.crowshow')) handleImportProjectFile(file);
+    else if (name.endsWith('.crownotebook')) {
+      const request = pdfLoadRequestRef.current;
+      const pdfId = docInfo?.id;
+      void (async () => {
+        const book = { ...await readNotebookFile(file), id: crypto.randomUUID() };
+        if (!pdfId) await openStandalone();
+        if (request !== pdfLoadRequestRef.current || pdfId !== activePdfIdRef.current) return;
+        const legacyId = crypto.randomUUID();
+        changeNotebook(previous => {
+          const existing = previous?.books?.length
+            ? previous.books
+            : previous?.pages.length ? [{ ...previous, id: legacyId, title: '나의 노트' }] : [];
+          return { pages: book.pages, annotations: book.annotations, view: book.view, books: [...existing, book], activeBookId: book.id };
+        });
+        setNotebookRevision(value => value + 1);
+        setViewMode(mode => mode === 'presenter' ? 'normal' : mode);
+        setNotesOpen(true);
+      })().catch(error => alert(`노트 불러오기 실패: ${String(error)}`));
+    } else if (name.endsWith('.pdf') || file.type === 'application/pdf' || koreanDocumentFormat(name)) {
+      void handleOpenFile(file);
+    } else {
+      alert(supportsKoreanDocuments()
+        ? '.pdf, .hwp, .hwpx, .crowshow, .crownotebook 파일을 열 수 있습니다.'
+        : '.pdf, .crowshow, .crownotebook 파일을 열 수 있습니다.');
+    }
+  });
   useEffect(() => {
     const allowDrop = (event: DragEvent) => event.preventDefault();
-    const openDroppedPdf = (event: DragEvent) => {
-      event.preventDefault();
-      const file = event.dataTransfer?.files?.[0];
-      if (!file) return;
-      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        alert('PDF 파일(.pdf)만 열 수 있습니다.');
-        return;
-      }
-      soundEngine.playClick();
-      void file.arrayBuffer().then((buffer) => loadPdfData(buffer, file.name, file.size)).catch(() => {
-        alert('PDF 파일을 읽을 수 없습니다.');
-      });
-    };
+    const drop = (event: DragEvent) => openDroppedFile(event);
     window.addEventListener('dragover', allowDrop);
-    window.addEventListener('drop', openDroppedPdf);
+    window.addEventListener('drop', drop);
     return () => {
       window.removeEventListener('dragover', allowDrop);
-      window.removeEventListener('drop', openDroppedPdf);
+      window.removeEventListener('drop', drop);
     };
-  }, [loadPdfData, soundEngine]);
-
-  // If loading or no PDF (brief fallback)
-  if (!pdfDoc || !docInfo) {
-    return (
-      <div className="app-container">
-        <StartScreen
-          onOpenHelp={()=>setShowHelp(true)}
-          onOpenFile={handleOpenFile}
-          recentFiles={recentFiles}
-          onOpenRecent={handleOpenRecent}
-        />
-        {showHelp&&<HelpDialog onClose={()=>setShowHelp(false)}/>}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,application/pdf"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            e.target.value = '';
-            if (f) handleOpenFile(f);
-          }}
-        />
-      </div>
-    );
-  }
+  }, []);
 
   // PRESENTER VIEW (DUAL STUDIO)
-  if (viewMode === 'presenter') {
+  if (viewMode === 'presenter' && pdfDoc && docInfo) {
     return (
       <PresenterModeView
         pdfDoc={pdfDoc}
@@ -750,7 +840,8 @@ export const App: React.FC = () => {
   }
 
   const toolProps:ToolDockProps={activeTool,penColor,penWidth,highlighterColor,highlighterWidth,laserColor,shapeType,shapeFill,shapeWidth,shapeBorder,shapeFillColor,shapeOpacity,onShapeWidthChange:setShapeWidth,onShapeBorderChange:setShapeBorder,onShapeFillColorChange:setShapeFillColor,onShapeOpacityChange:setShapeOpacity,laserSize:settings.laserSize,laserTrailDurationMs:settings.laserTrailDurationMs,onLaserSizeChange:value=>setSettings(old=>({...old,laserSize:value})),onLaserDurationChange:value=>setSettings(old=>({...old,laserTrailDurationMs:value})),eraserMode,eraserWidth,enableStylusPressure:settings.enableStylusPressure,enableTilt:settings.enableTilt,onPressureChange:enabled=>setSettings(value=>({...value,enableStylusPressure:enabled})),onTiltChange:enabled=>setSettings(value=>({...value,enableTilt:enabled})),onEraserWidthChange:setEraserWidth,onSelectTool:handleSelectTool,onPenColorChange:setPenColor,onPenWidthChange:setPenWidth,onHighlighterColorChange:setHighlighterColor,onHighlighterWidthChange:setHighlighterWidth,onLaserColorChange:setLaserColor,onShapeTypeChange:setShapeType,onShapeFillChange:setShapeFill,onEraserModeChange:setEraserMode,onClearPage:()=>notesOpen?notebookRef.current?.clearPage():annotationStore.clearSlide(currentSlide),onClearDocument:()=>notesOpen?notebookRef.current?.clearAll():setShowClearConfirm(true)};
-  const currentSlideAspect = docInfo.pageAspectRatios[currentSlide - 1] || 16 / 9;
+  const currentSlideAspect = docInfo?.pageAspectRatios[currentSlide - 1] || 16 / 9;
+  const recentBook = standaloneNotebook?.books?.find(book => book.id === standaloneNotebook.activeBookId);
   const effectiveTransitionType = slideTransitions[currentSlide] ?? settings.defaultTransition;
   const effectiveTransitionConfig: SlideTransitionConfig = {
     ...transitionConfig,
@@ -765,12 +856,12 @@ export const App: React.FC = () => {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".pdf,application/pdf"
+        accept={supportsKoreanDocuments() ? '.pdf,.hwp,.hwpx,application/pdf' : '.pdf,application/pdf'}
         style={{ display: 'none' }}
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
-          if (f) handleOpenFile(f);
+          if (f) void handleOpenFile(f);
         }}
       />
       <input
@@ -783,10 +874,72 @@ export const App: React.FC = () => {
           if (file) handleImportProjectFile(file);
         }}
       />
+      <input
+        ref={referencePdfInputRef}
+        type="file"
+        accept=".pdf,application/pdf"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          if (!file.name.toLowerCase().endsWith('.pdf')) {
+            alert('한컴 한글에서 저장한 PDF 파일을 선택해 주세요.');
+            return;
+          }
+          void handleOpenFile(file);
+        }}
+      />
 
-      {(
+      <input
+        ref={hwpRefreshInputRef}
+        type="file"
+        accept=".hwp,.hwpx"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          if (koreanDocumentFormat(file.name)) void handleOpenFile(file, true);
+          else alert('HWP 또는 HWPX 문서를 선택해 주세요.');
+        }}
+      />
+
+      {pendingHwpPreview && (
+        <ConfirmModal
+          title="한글 문서 조판 확인"
+          message={pendingHwpPreview.layout === 'overlap'
+            ? '변환본에서 글자나 표의 배치 문제가 감지됐습니다. 그림, 수식과 선택지도 원본과 대조하거나 한컴에서 저장한 PDF를 선택하세요.'
+            : '변환본의 조판 검사를 마치지 못했습니다. 그림, 수식과 선택지를 원본과 대조하거나 한컴에서 저장한 PDF를 선택하세요.'}
+          confirmLabel="한컴 PDF 선택"
+          cancelLabel="변환본 열기"
+          confirmStyle="primary"
+          onConfirm={() => referencePdfInputRef.current?.click()}
+          onCancel={() => setPendingHwpPreview(null)}
+          onSecondaryAction={() => {
+            const { bytes, name, size, request } = pendingHwpPreview;
+            void loadPdfData(bytes, name, size, true, request);
+          }}
+        />
+      )}
+
+      {!docInfo && !notesOpen ? (
+        <StartScreen
+          onOpenHelp={() => setShowHelp(true)}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenPdf={() => fileInputRef.current?.click()}
+          onOpenProject={() => projectInputRef.current?.click()}
+          onStartNotebook={toggleNotebook}
+          onOpenRecent={handleOpenRecent}
+          recentFiles={recentFiles}
+          recentNotebook={recentBook?.title ?? null}
+          notebookLoading={standaloneLoading}
+          supportsKoreanDocuments={supportsKoreanDocuments()}
+        />
+      ) : <>
         <HeaderToolbar
-          notesOpen={notesOpen} onToggleNotes={()=>setNotesOpen(value=>!value)}
+          hasPdf={Boolean(docInfo)}
+          notesOpen={notesOpen} onToggleNotes={toggleNotebook}
           transitionType={effectiveTransitionType}
           transitionSound={settings.transitionSound}
           canUndo={activeStore.canUndo()}
@@ -802,18 +955,18 @@ export const App: React.FC = () => {
           onUndo={() => { soundEngine.playClick(); activeStore.undo(); }}
           onRedo={() => { soundEngine.playClick(); activeStore.redo(); }}
           onPrint={()=>setPrintOpen(true)}
-          onExportPdf={()=>{if(pdfBytes)downloadBytes(pdfBytes,docInfo.name.replace(/\.pdf$/i,'')+'-edited.pdf','application/pdf');}}
+          onExportPdf={()=>{if(pdfBytes && docInfo)downloadBytes(pdfBytes,docInfo.name.replace(/\.(pdf|hwp|hwpx)$/i,'')+'-edited.pdf','application/pdf');}}
+          onExportA4={docInfo && koreanDocumentFormat(docInfo.name) ? () => void handleExportA4() : undefined}
           onExportAnnotatedPdf={() => void handleExportAnnotatedPdf()}
           onExportProject={handleExportProject}
           onImportProject={() => projectInputRef.current?.click()}
           onOpenSettings={() => { soundEngine.playClick(); setShowSettingsModal(true); }} onOpenHelp={()=>setShowHelp(true)}
         />
-      )}
 
       {/* MAIN WORKSPACE BODY */}
       <div className="presentation-stage-wrapper">
         {/* Left: Thumbnail Sidebar (Normal mode only) */}
-        {viewMode === 'normal' && (
+        {viewMode === 'normal' && pdfDoc && docInfo && (
           <SlideThumbnailList
             pdfDoc={pdfDoc}
             totalSlides={docInfo.totalSlides}
@@ -824,7 +977,7 @@ export const App: React.FC = () => {
               setIsSidebarOpen(!isSidebarOpen);
             }}
             onSelectSlide={page=>{setNotesOpen(false);handleNavigate(page);}}
-            onRestore={()=>void restoreOriginal()} onSave={()=>{if(pdfBytes)downloadBytes(pdfBytes,docInfo.name.replace(/\.pdf$/i,'')+'-edited.pdf','application/pdf');}} canRestore={docUndo.length>0}
+            onRestore={()=>void restoreOriginal()} onSave={()=>{if(pdfBytes)downloadBytes(pdfBytes,docInfo.name.replace(/\.(pdf|hwp|hwpx)$/i,'')+'-edited.pdf','application/pdf');}} canRestore={docUndo.length>0}
             busy={editBusy} onEdit={(type,page,to)=>void handlePageEdit(type==='move'?{type,page,to:to!}:{type,page})}
             onInsert={()=>insertInputRef.current?.click()} onUndo={()=>void travelDocument()} onRedo={()=>void travelDocument(true)} canUndo={docUndo.length>0} canRedo={docRedo.length>0}
           />
@@ -836,8 +989,8 @@ export const App: React.FC = () => {
           className="slide-center-stage"
           onContextMenu={(event) => event.preventDefault()}
         >
-          {notesOpen&&<NotebookPanel key={docInfo.id} ref={notebookRef} docId={docInfo.id} data={notebook} storageError={noteStorageError} store={noteStore} tools={toolProps} onChange={setNotebook} onStatus={setNoteStatus} onClose={()=>setNotesOpen(false)}/>}
-          <div className="pdf-workspace-view" hidden={notesOpen}>
+          {notesOpen&&<NotebookPanel key={`${notebookId}/${notebookRevision}`} ref={notebookRef} docId={notebookId} data={activeNotebook} storageError={noteStorageError} store={noteStore} tools={toolProps} onChange={changeNotebook} onStatus={setNoteStatus} onClose={()=>setNotesOpen(false)}/>}
+          {pdfDoc && docInfo && <div className="pdf-workspace-view" hidden={notesOpen}>
           <TransitionContainer
             key={docInfo.id}
             pdfDoc={pdfDoc}
@@ -881,7 +1034,7 @@ export const App: React.FC = () => {
             onPrev={() => handleNavigate(currentSlide - 1)}
             onNext={() => handleNavigate(currentSlide + 1)}
           />
-          </div>
+          </div>}
         </div>
       </div>
 
@@ -889,10 +1042,12 @@ export const App: React.FC = () => {
       {(
           <BottomStatusBar
           presentation={viewMode==='presentation'} onExitPresentation={handleExitPresentation}
-          documentName={notesOpen?'Notebook · '+docInfo.name:docInfo.name}
+          notebook={notesOpen}
+          canPresent={Boolean(docInfo) && (!notesOpen || viewMode === 'presentation')}
+          documentName={notesOpen ? (docInfo ? 'Notebook · '+docInfo.name : 'Notebook') : docInfo?.name ?? ''}
           tools={<ToolDock {...toolProps}/>}
           currentSlide={notesOpen?noteStatus.page:currentSlide}
-          totalSlides={notesOpen?noteStatus.total:docInfo.totalSlides}
+          totalSlides={notesOpen?noteStatus.total:docInfo?.totalSlides ?? 0}
           zoomFactor={notesOpen?noteStatus.zoom:displayZoom}
           zoomMode={notesOpen?(noteStatus.mode||'fit-width'):zoomMode}
           timer={presentationTimer}
@@ -919,11 +1074,13 @@ export const App: React.FC = () => {
           />
       )}
 
-      {printOpen&&<PrintDialog pdf={pdfDoc} annotations={annotationStore.getAllAnnotations()} onClose={()=>setPrintOpen(false)}/>}
+      </>}
+      {printOpen&&pdfDoc&&<PrintDialog pdf={pdfDoc} annotations={annotationStore.getAllAnnotations()} onClose={()=>setPrintOpen(false)}/>}
       {editBusy&&<div className="edit-progress" role="status">PDF 페이지 편집 중…</div>}
+      {convertingDocument && <div className="edit-progress" role="status">한글 문서를 PDF로 변환 중…</div>}
 
       {/* MODALS */}
-      {showGoToModal && (
+      {showGoToModal && docInfo && (
         <GoToSlideModal
           currentSlide={currentSlide}
           totalSlides={docInfo.totalSlides}
@@ -939,6 +1096,16 @@ export const App: React.FC = () => {
           desktopAvailable={isDesktopApp()}
           onCheckUpdates={() => void checkForDesktopUpdates(true)}
           onOpenPdfDefaults={() => void openPdfDefaultApps()}
+          onOpenHwpFresh={supportsKoreanDocuments() ? () => {
+            hwpRefreshInputRef.current?.click();
+            setShowSettingsModal(false);
+          } : undefined}
+          onClearHwpCache={supportsKoreanDocuments() ? () => {
+            void clearHwpConversionCache().then(
+              () => alert('한글 변환 캐시를 비웠습니다.'),
+              error => alert(String(error)),
+            );
+          } : undefined}
           onUpdateSettings={(newSet) => {
             soundEngine.playClick();
             if (newSet.laserColor) setLaserColor(newSet.laserColor);

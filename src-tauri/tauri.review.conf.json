@@ -1,16 +1,15 @@
 {
   "identifier": "lab.crowscience.crowshow.review",
-  "productName": "CrowShow 1.5 Review",
+  "productName": "CrowShow 2.0 Review",
   "bundle": {
-    "fileAssociations": [],
     "useLocalToolsDir": true,
-    "windows": { "nsis": { "installerHooks": null } }
+    "windows": { "nsis": { "template": null, "installerHooks": null } }
   },
   "app": {
     "windows": [{
-      "title": "CrowShow 1.5 검토",
-      "width": 1440, "height": 900,
-      "minWidth": 760, "minHeight": 520,
+      "title": "CrowShow 2.0 검토",
+      "width": 548, "height": 420,
+      "minWidth": 480, "minHeight": 360,
       "center": true, "resizable": true, "fullscreen": false,
       "dragDropEnabled": false
     }]

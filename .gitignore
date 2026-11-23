@@ -16,6 +16,7 @@ dist-ssr
 !.env.example
 target
 src-tauri/target
+src-tauri/vendor/
 release
 public/pdfjs
 tmp

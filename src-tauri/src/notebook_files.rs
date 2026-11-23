@@ -3,10 +3,12 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashMap,
     fs,
+    io::{Read, Write},
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 use tauri::Manager;
+
+const MAX_NOTEBOOK_BYTES: u64 = 128 * 1024 * 1024;
 
 #[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -73,7 +75,7 @@ fn write_revision(
     Ok(())
 }
 fn validate_content(content: &str) -> Result<(), String> {
-    if content.len() > 128 * 1024 * 1024 {
+    if content.len() as u64 > MAX_NOTEBOOK_BYTES {
         return Err("Notebook 파일은 128MB 이하만 지원합니다.".into());
     }
     let v: serde_json::Value =
@@ -256,6 +258,23 @@ fn notebook_path(value: &str) -> Result<PathBuf, String> {
     }
     Ok(path)
 }
+
+fn read_notebook(path: &Path) -> Result<Vec<u8>, String> {
+    let file = fs::File::open(path).map_err(|error| error.to_string())?;
+    let metadata = file.metadata().map_err(|error| error.to_string())?;
+    if !metadata.is_file() || metadata.len() > MAX_NOTEBOOK_BYTES {
+        return Err("128MB 이하의 Notebook 파일을 선택하세요.".into());
+    }
+    let mut bytes = Vec::new();
+    file.take(MAX_NOTEBOOK_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() as u64 > MAX_NOTEBOOK_BYTES {
+        return Err("Notebook 파일이 128MB를 초과합니다.".into());
+    }
+    Ok(bytes)
+}
+
 fn write_file(
     path: &Path,
     content: &str,
@@ -265,24 +284,28 @@ fn write_file(
 ) -> Result<String, String> {
     validate_content(content)?;
     if path.exists() {
-        let current = fs::read(path).map_err(|e| e.to_string())?;
-        if !allow_replace && expected != Some(digest(&current).as_str()) {
+        let current = read_notebook(path)?;
+        let current_hash = digest(&current);
+        if !allow_replace && expected != Some(current_hash.as_str()) {
             return Err("다른 프로그램 또는 기기에서 파일이 변경됐습니다. 다시 불러오거나 다른 이름으로 저장하세요.".into());
         }
         fs::create_dir_all(backup_root).map_err(|e| e.to_string())?;
         fs::write(
-            backup_root.join(format!("{}.crownotebook", digest(&current))),
+            backup_root.join(format!("{current_hash}.crownotebook")),
             current,
         )
         .map_err(|e| e.to_string())?;
     }
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_nanos();
-    let temp = path.with_extension(format!("crownotebook.{nonce}.tmp"));
-    fs::write(&temp, content).map_err(|e| e.to_string())?;
-    fs::rename(&temp, path).map_err(|e| format!("저장 파일 교체 실패: {e}"))?;
+    let parent = path.parent().ok_or("Notebook 저장 폴더 오류")?;
+    let mut temp = tempfile::Builder::new()
+        .prefix(".crowshow-")
+        .suffix(".tmp")
+        .tempfile_in(parent)
+        .map_err(|error| error.to_string())?;
+    temp.write_all(content.as_bytes())
+        .map_err(|error| error.to_string())?;
+    temp.persist(path)
+        .map_err(|error| format!("저장 파일 교체 실패: {error}"))?;
     Ok(digest(content.as_bytes()))
 }
 fn require_drive(
@@ -419,11 +442,8 @@ pub async fn open_notebook_file(
             return Ok(None);
         };
         let path = notebook_path(&selected)?;
-        let size = fs::metadata(&path).map_err(|e| e.to_string())?.len();
-        if size > 128 * 1024 * 1024 {
-            return Err("Notebook 파일이 128MB를 초과합니다.".into());
-        }
-        let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let content = String::from_utf8(read_notebook(&path)?)
+            .map_err(|_| "Notebook 파일은 UTF-8이어야 합니다.")?;
         validate_content(&content)?;
         c.hashes.insert(
             revision_key(&book_id, &selected),
@@ -447,6 +467,7 @@ pub async fn open_notebook_file(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
     #[test]
     fn notebook_write_roundtrip_and_conflict() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

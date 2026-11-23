@@ -1,6 +1,10 @@
 import type { NotebookBook } from '../types/notebook';
 import { readProject } from './projectValidation';
 export const NOTEBOOK_FILE_EXTENSION='.crownotebook';
+export async function readNotebookFile(file: File): Promise<NotebookBook> {
+ if (file.size > 128 * 1024 * 1024) throw new Error('Notebook 파일은 128MB 이하만 지원합니다.');
+ return decodeNotebookFile(await file.text());
+}
 export function encodeNotebookFile(book:NotebookBook):string {
  return JSON.stringify({format:'crowshow-notebook',version:1,savedAt:new Date().toISOString(),book},null,2);
 }

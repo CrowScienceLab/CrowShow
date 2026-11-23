@@ -1,7 +1,9 @@
 [CmdletBinding()]
-param([switch]$SkipBuild)
+param([switch]$SkipBuild, [string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $taskRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if (!$OutputDirectory) { $OutputDirectory = Join-Path $taskRoot 'release' }
+$OutputDirectory = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 $taskMakeAppx = 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe'
 if (-not (Test-Path -LiteralPath $taskMakeAppx)) { throw 'Windows SDK MakeAppx is required.' }
 Push-Location $taskRoot
@@ -10,10 +12,13 @@ try {
         & npm.cmd run tauri:build -- --no-bundle --features microsoft-store --config src-tauri/tauri.store.conf.json
         if ($LASTEXITCODE -ne 0) { throw 'Store build failed.' }
     }
+    & npm.cmd run prepare:rhwp
+    if ($LASTEXITCODE -ne 0) { throw 'Could not prepare rhwp for the Store package.' }
     $taskStage = Join-Path $taskRoot ('tmp\store-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path (Join-Path $taskStage 'Assets') -Force | Out-Null
     Copy-Item -LiteralPath 'src-tauri\target\release\crowshow.exe' -Destination $taskStage
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'AppxManifest.xml') -Destination $taskStage
+    Copy-Item -LiteralPath 'src-tauri\vendor\rhwp' -Destination $taskStage -Recurse
     Add-Type -AssemblyName System.Drawing
     $taskIcon = [System.Drawing.Image]::FromFile((Join-Path $taskRoot 'public\crowshow-player-icon.png'))
     try {
@@ -29,10 +34,10 @@ try {
             } finally { $taskGraphics.Dispose(); $taskBitmap.Dispose() }
         }
     } finally { $taskIcon.Dispose() }
-    New-Item -ItemType Directory -Force -Path (Join-Path $taskRoot 'release') | Out-Null
+    New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
     $taskVersion = (Get-Content -LiteralPath 'src-tauri\tauri.conf.json' -Raw | ConvertFrom-Json).version
     $taskDisplayVersion = $taskVersion -replace '\.0$',''
-    $taskOutput = Join-Path $taskRoot "release\CrowShow-v$taskDisplayVersion-Store-x64.msix"
+    $taskOutput = Join-Path $OutputDirectory "CrowShow-v$taskDisplayVersion-Store-x64.msix"
     if (Test-Path -LiteralPath $taskOutput) { throw 'Archive the previous Store package before rebuilding.' }
     & $taskMakeAppx pack /v /h SHA256 /d $taskStage /p $taskOutput
     if ($LASTEXITCODE -ne 0) { throw 'MakeAppx validation failed.' }

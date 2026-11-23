@@ -1,0 +1,125 @@
+diff --git a/src/renderer/layout.rs b/src/renderer/layout.rs
+index aabadfc2..9570cb7b 100644
+--- a/src/renderer/layout.rs
++++ b/src/renderer/layout.rs
+@@ -14301,6 +14301,52 @@ impl LayoutEngine {
+                 } else {
+                     table_y_start
+                 };
++                // A standalone table that owns an entire saved, indented row
++                // starts at the row's flow origin, not an inline baseline.
++                let owns_indented_stored_band = self.profile.get().hwp5_stored_pagination_layout()
++                    && !self.profile.get().session_edited()
++                    && page_content.column_contents.len() > 1
++                    && is_tac
++                    && !tac_already_rendered_inline
++                    && t.common.text_wrap == TextWrap::TopAndBottom
++                    && t.outer_margin_top == 0
++                    && t.outer_margin_bottom == 0
++                    && para.text.trim().is_empty()
++                    && para.controls.len() == 1
++                    && matches!(para.line_segs.as_slice(), [seg] if
++                        seg.column_start > 0
++                        && seg.line_height == seg.text_height
++                        && i64::from(seg.text_height) == i64::from(t.common.height)
++                        && (seg.column_start.saturating_add(seg.segment_width))
++                            .abs_diff(px_to_hwpunit(col_area.width, self.dpi)) <= 200);
++                let stored_indented_band_top = owns_indented_stored_band
++                    .then(|| hwpunit_to_px(para.line_segs[0].vertical_pos, self.dpi))
++                    .filter(|top| *top >= 0.0 && *top < col_area.height)
++                    .map(|top| col_area.y + top)
++                    .filter(|top| (top - table_y_before).abs() <= table_visual_height)
++                    .map(|top| {
++                        let Some(previous) = para_index.checked_sub(1) else {
++                            return top;
++                        };
++                        let Some(line) = paragraphs[previous].line_segs.last() else {
++                            return top;
++                        };
++                        let saved_end = line.vertical_pos
++                            .saturating_add(line.line_height)
++                            .saturating_add(line.line_spacing);
++                        if saved_end.abs_diff(para.line_segs[0].vertical_pos) > 8 {
++                            return top;
++                        }
++                        // Preserve the saved adjacency if the preceding text
++                        // has advanced farther in the rendered column.
++                        col_node.children.iter().rev().find_map(|child| {
++                            matches!(&child.node_type, RenderNodeType::TextLine(text)
++                                if text.para_index == Some(previous) && text.caption_owner.is_none())
++                                .then(|| child.bbox.y + child.bbox.height
++                                    + hwpunit_to_px(line.line_spacing.max(0), self.dpi))
++                        }).map_or(top, |floor| top.max(floor))
++                    });
++                let table_y_start = stored_indented_band_top.unwrap_or(table_y_start);
+                 if !table_note_references.is_empty() {
+                     if let Some(seg) = control_line_seg_index(para, control_index)
+                         .and_then(|index| para.line_segs.get(index))
+@@ -14359,9 +14405,10 @@ impl LayoutEngine {
+                             .map(|p| {
+                                 (
+                                     p.table_left.map(|left| col_area.x + left),
+-                                    col_area.y + p.table_top,
++                                    stored_indented_band_top.unwrap_or(col_area.y + p.table_top),
+                                 )
+-                            }),
++                            })
++                            .or_else(|| stored_indented_band_top.map(|top| (None, top))),
+                         Self::standalone_table_char_border_fill(Some(para), t, styles),
+                     )
+                 };
+diff --git a/src/renderer/layout/paragraph_layout.rs b/src/renderer/layout/paragraph_layout.rs
+index adaae5f2..b914a3a3 100755
+--- a/src/renderer/layout/paragraph_layout.rs
++++ b/src/renderer/layout/paragraph_layout.rs
+@@ -6577,9 +6577,17 @@ impl LayoutEngine {
+                         + hwpunit_to_px(row.vertical_pos, self.dpi);
+                 }
+             }
+-            // 다단 필터링: segment_width가 현재 단 너비와 불일치하면 건너뜀
++            // The stored line starts at a column-relative offset. An ordinary
++            // indented line still belongs to this column when its right edge
++            // reaches the column width.
+             if let Some(col_w) = multi_col_width_hu {
+-                if comp_line.segment_width > 0 && (comp_line.segment_width - col_w).abs() > 200 {
++                let right_edge = comp_line
++                    .segment_width
++                    .saturating_add(comp_line.column_start.max(0));
++                if comp_line.segment_width > 0
++                    && comp_line.segment_width.abs_diff(col_w) > 200
++                    && right_edge.abs_diff(col_w) > 200
++                {
+                     // char_offset만 진행하고 렌더링 건너뜀
+                     for run in &comp_line.runs {
+                         char_offset += run.source_scalar_count();
+diff --git a/src/renderer/layout/shape_item.inc.rs b/src/renderer/layout/shape_item.inc.rs
+index a56ff5ba..c6b07159 100644
+--- a/src/renderer/layout/shape_item.inc.rs
++++ b/src/renderer/layout/shape_item.inc.rs
+@@ -352,6 +352,26 @@ impl LayoutEngine {
+                                             self.dpi,
+                                         ),
+                                 ));
++                            // A full-body-width banner on the opening paragraph of
++                            // the first column is offset from the column top. The
++                            // paragraph's stored first line already avoids it.
++                            let page_top_banner = self.profile.get().hwp5_stored_pagination_layout()
++                                && page_content.column_contents.len() > 1
++                                && page_content.column_contents.first().and_then(|column| column.items.first())
++                                    .and_then(page_item_para_index) == Some(para_index)
++                                && pic.common.text_wrap == TextWrap::TopAndBottom
++                                && pic.common.vert_rel_to == VertRelTo::Para
++                                && pic.common.horz_rel_to == crate::model::shape::HorzRelTo::Column
++                                && pic.common.vert_align == crate::model::shape::VertAlign::Top
++                                && (pic.common.vertical_offset as i32) < 0
++                                && (hwpunit_to_px(pic.common.width as i32, self.dpi) - layout.body_area.width).abs() < 0.5
++                                && col_area.width < layout.body_area.width - 0.5
++                                && pic_y > col_area.y + 0.5;
++                            let (vpos_accounts_for_height, pic_y) = if page_top_banner {
++                                (false, col_area.y)
++                            } else {
++                                (vpos_accounts_for_height, pic_y)
++                            };
+                             // typeset의 ObjectPlacementFrame과 같은 문단 좌우 여백을
+                             // Para 기준 그림에도 준다. paint만 단 전체를 기준으로
+                             // 두면 TIFF 그림과 캡션이 저장 1000HU만큼 왼쪽으로 간다

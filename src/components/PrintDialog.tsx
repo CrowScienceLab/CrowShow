@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { prepareImages } from '../annotations/media';
 import { StrokeEngine } from '../annotations/strokeEngine';
@@ -8,6 +9,11 @@ export function PrintDialog({pdf,annotations,onClose}:{pdf:PDFDocumentProxy;anno
   const [range,setRange]=useState(''),[perSheet,setPerSheet]=useState(1),[ink,setInk]=useState(true),[landscape,setLandscape]=useState(false);
   const [html,setHtml]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const frame=useRef<HTMLIFrameElement>(null);
+  useEffect(()=>{
+    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'){event.preventDefault();event.stopImmediatePropagation();onClose();}};
+    window.addEventListener('keydown',onKey,true);
+    return()=>window.removeEventListener('keydown',onKey,true);
+  },[onClose]);
   useEffect(()=>{
     let cancelled=false;
     // Prepare the external PDF render job whenever print settings change.
@@ -34,7 +40,7 @@ export function PrintDialog({pdf,annotations,onClose}:{pdf:PDFDocumentProxy;anno
       }catch(e){if(!cancelled)setError(String(e));}finally{if(!cancelled)setBusy(false);}
     })(); return ()=>{cancelled=true;};
   },[pdf,annotations,range,perSheet,ink,landscape]);
-  return <div className="modal-overlay"><section className="print-dialog" role="dialog" aria-label="인쇄 미리보기"><header><h2>인쇄 미리보기</h2><button onClick={onClose}>닫기</button></header>
+  return <div className="modal-overlay" onPointerDown={e=>{if(e.target===e.currentTarget)onClose();}}><section className="print-dialog" role="dialog" aria-modal="true" aria-label="인쇄 미리보기"><header><h2>인쇄 미리보기</h2><button className="icon-btn-sm" aria-label="인쇄 미리보기 닫기" title="닫기 (Esc)" onClick={onClose}><X size={18}/></button></header>
     <div className="print-layout"><div className="print-options"><label>페이지 <input aria-label="인쇄 페이지 범위" value={range} placeholder="전체 · 예: 1-3, 5" onChange={e=>setRange(e.target.value)}/></label>
     <label>한 면에 <select aria-label="한 면의 슬라이드 수" value={perSheet} onChange={e=>setPerSheet(Number(e.target.value))}>{[1,2,4,6,9].map(n=><option key={n} value={n}>{n}장</option>)}</select></label>
     <label><input type="checkbox" checked={ink} onChange={e=>setInk(e.target.checked)}/>필기 포함</label><label><input type="checkbox" checked={landscape} onChange={e=>setLandscape(e.target.checked)}/>가로 용지</label>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowRight, X } from 'lucide-react';
 
 interface GoToSlideModalProps {
@@ -17,6 +17,18 @@ export const GoToSlideModal: React.FC<GoToSlideModalProps> = ({
   const [val, setVal] = useState<string>(String(currentSlide));
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const num = parseInt(val, 10);
@@ -30,10 +42,10 @@ export const GoToSlideModal: React.FC<GoToSlideModalProps> = ({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-card" role="dialog" aria-modal="true" aria-label="슬라이드 이동" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>슬라이드 이동 (Go to Slide)</h3>
-          <button className="icon-btn-sm" onClick={onClose}>
+          <button className="icon-btn-sm" onClick={onClose} aria-label="닫기" title="닫기 (Esc)">
             <X size={16} />
           </button>
         </div>

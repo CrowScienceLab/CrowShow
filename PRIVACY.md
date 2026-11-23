@@ -12,6 +12,8 @@ CrowShow는 PDF를 열고 발표·필기하는 PC 애플리케이션입니다. C
 앱은 이 내용을 로컬에서 처리합니다. 사용자는 프로젝트 및 필기가 포함된 PDF를 선택한 위치로 내보낼 수 있습니다.
 청중 창에는 같은 PC에서 발표 문서와 필기를 전달합니다.
 
+HWP·HWPX는 장치에서 PDF로 변환합니다. 재사용을 위해 변환한 PDF와 문서 바이트의 SHA-256을 키로 사용하는 캐시 항목을 Windows 사용자별 앱 캐시 폴더에 보관할 수 있습니다. **환경 설정 → 한글 변환 캐시 비우기**에서 지울 수 있으며, 최근 문서 기록은 앱 저장소에서 별도로 관리됩니다.
+
 앱의 저장·내보내기는 원본 PDF를 자동 변경하지 않습니다. 앱 내부의 필기 삭제 기능 또는 Windows의
 앱 초기화·제거 기능으로 로컬 데이터를 관리할 수 있습니다. 별도로 내보낸 파일과 운영체제가 만든 백업은
 사용자가 해당 위치에서 관리합니다. 공유 PC에서 중요한 자료를 사용할 때에는 별도 백업과 계정 보호를 권장합니다.
@@ -38,6 +40,10 @@ annotations, presenter notes, or recent-file history to developer servers. Selec
 annotations, notes, and preferences may be stored in the app's local storage. Documents may contain
 personal information; processing remains on the device. Exported projects and annotated PDFs are saved
 to locations selected by you. The audience window receives presentation content within the same PC.
+
+HWP and HWPX documents are converted to PDF on your device. The app may store the converted PDF
+in the Windows user's app cache, using a key derived from the document bytes. Clear it with
+**Clear Hangul conversion cache** in Settings. Recent documents are stored separately.
 
 Use the app's annotation deletion controls or Windows app reset/uninstall to manage local data.
 Exported files and operating-system backups must be managed separately. Store editions receive updates

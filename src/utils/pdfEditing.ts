@@ -30,6 +30,44 @@ export async function editPdf(bytes:Uint8Array, edit:PageEdit) {
   }
   return {bytes:new Uint8Array(await pdf.save()),mapping,aspect};
 }
+
+export async function fitPdfToA4(bytes: Uint8Array): Promise<Uint8Array> {
+  const {
+    PDFContentStream, PDFDocument, clip, concatTransformationMatrix, endPath,
+    popGraphicsState, pushGraphicsState, rectangle,
+  } = await import('pdf-lib');
+  const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
+  let changed = false;
+  for (const page of pdf.getPages()) {
+    const box = page.getCropBox();
+    const [width, height] = box.width > box.height ? [841, 595] : [595, 841];
+    if (box.width === width && box.height === height) continue;
+    const scale = Math.min(width / box.width, height / box.height);
+    const rotation = (page.getRotation().angle + 360) % 360;
+    // Place the original visible rectangle at the top left, including rotated pages.
+    const x = box.x * scale + (rotation >= 180 ? box.width * scale - width : 0);
+    const y = box.y * scale + (rotation === 0 || rotation === 270 ? box.height * scale - height : 0);
+    page.node.normalize();
+    const start = PDFContentStream.of(pdf.context.obj({}), [
+      pushGraphicsState(),
+      concatTransformationMatrix(scale, 0, 0, scale, 0, 0),
+      rectangle(box.x, box.y, box.width, box.height),
+      clip(),
+      endPath(),
+    ]);
+    const end = PDFContentStream.of(pdf.context.obj({}), [popGraphicsState()]);
+    page.node.wrapContentStreams(pdf.context.register(start), pdf.context.register(end));
+    page.scaleAnnotations(scale, scale);
+    page.setMediaBox(x, y, width, height);
+    page.setCropBox(x, y, width, height);
+    page.setBleedBox(x, y, width, height);
+    page.setTrimBox(x, y, width, height);
+    page.setArtBox(x, y, width, height);
+    changed = true;
+  }
+  return changed ? new Uint8Array(await pdf.save()) : bytes;
+}
+
 export function remapPages<T>(data:Record<number,T>,mapping:(number|null)[]):Record<number,T> {
   return Object.fromEntries(mapping.flatMap((old,i)=>old!==null&&data[old]!==undefined?[[i+1,structuredClone(data[old])]]:[]));
 }

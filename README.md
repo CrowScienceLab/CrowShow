@@ -1,8 +1,14 @@
-# CrowShow 1.5
+# CrowShow
+
+> PC판 2.0 개발판에서는 **문서 열기** 또는 끌어 놓기로 HWP·HWPX를 열 수 있습니다. 로컬에서 PDF로 변환해 기존 발표·필기 화면에 표시합니다. [2.0 변환 검증](docs/maintenance/2026-11-23-v2.0-hwp/REPORT.md)
+
+> PC판 1.6의 변경점은 [1.6 릴리스 안내](docs/RELEASE-v1.6.0.md)에 있습니다. 공개 다운로드 버전은 아래 GitHub 또는 Microsoft Store에서 확인할 수 있습니다.
+
+> 후속 작업: [전체 인계서](HANDOFF.md) · [다음 채팅 시작문](NEXT_CHAT_PROMPT.md). 사용자 확인(2026-11-10): Microsoft Store 심사 완료 후 배포 중.
 
 PDF 발표·필기·Notebook을 위한 Windows PC 앱입니다. Crow Science Lab이 교실 수업과 강의에 맞춰 만들었습니다. 문서를 열고 필기하거나 발표하는 데 개발자 계정이나 인터넷 연결이 필요하지 않습니다.
 
-[최신 GitHub 설치 파일](https://github.com/CrowScienceLab/CrowShow/releases/latest) · [Microsoft Store](https://apps.microsoft.com/detail/9N2G0ST27LBW) · [1.5 릴리스 안내](docs/RELEASE-v1.5.0.md) · [사용 방법](USER_GUIDE.md)
+[최신 GitHub 설치 파일](https://github.com/CrowScienceLab/CrowShow/releases/latest) · [Microsoft Store](https://apps.microsoft.com/detail/9N2G0ST27LBW) · [사용 방법](USER_GUIDE.md)
 
 ## 주요 기능
 
@@ -20,12 +26,12 @@ PDF 발표·필기·Notebook을 위한 Windows PC 앱입니다. Crow Science Lab
 ## 시작하기
 
 1. GitHub의 Windows x64 설치 파일 또는 Microsoft Store에서 설치합니다.
-2. PDF를 열거나 창에 끌어 놓습니다. 썸네일과 방향키로 페이지를 이동합니다.
+2. PDF를 열거나 창에 끌어 놓습니다. 1.6에서는 **노트 시작**으로 PDF 없이 필기할 수도 있습니다. PDF 페이지는 썸네일과 방향키로 이동합니다.
 3. 하단 도구로 필기하고 F5로 발표합니다. N 또는 상단 노트 버튼으로 Notebook을 엽니다.
 4. 중요한 작업은 .crowshow 프로젝트 또는 .crownotebook 파일로 저장합니다. 공유·인쇄에는 PDF를 내보냅니다.
 5. 상단 ? 버튼에서 자세한 기능과 단축키를 확인합니다.
 
-1.5는 큰 필기 자료의 저장 구조, 도형 크기·회전, 팔레트, 인쇄 배치, 테마와 도움말을 개선했습니다. 자세한 변경점과 호환 범위는 [릴리스 안내](docs/RELEASE-v1.5.0.md)에 있습니다.
+1.6은 작은 시작 창, 독립 Notebook, 캡슐 메뉴와 데스크 배경, Windows 설치 옵션을 추가했습니다. [1.6 변경점](docs/RELEASE-v1.6.0.md) · [1.5 변경점](docs/RELEASE-v1.5.0.md)
 
 ## 설치·개인정보
 
