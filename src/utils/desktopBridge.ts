@@ -2,6 +2,7 @@ import { encodeNotebookFile } from './notebookFile';
 import { downloadBytes } from './download';
 import { safeLink } from '../annotations/media';
 import { flushInk } from './inkStorage';
+import { convertHwpToPdfInBrowser } from './browserHwpConverter';
 export interface DesktopPdfPayload {
   name: string;
   size: number;
@@ -18,7 +19,7 @@ const isTauri = () => Boolean(window.__TAURI_INTERNALS__);
 
 export const isDesktopApp = () => isTauri() || Boolean(window.crowShowDesktop);
 
-export const supportsKoreanDocuments = isTauri;
+export const supportsKoreanDocuments = () => true;
 
 export function koreanDocumentFormat(name: string): 'hwp' | 'hwpx' | undefined {
   const extension = name.split('.').at(-1)?.toLowerCase();
@@ -26,8 +27,11 @@ export function koreanDocumentFormat(name: string): 'hwp' | 'hwpx' | undefined {
 }
 
 export async function convertKoreanDocument(file: File, format: 'hwp' | 'hwpx', refresh = false) {
-  if (!supportsKoreanDocuments()) throw new Error('한글 문서는 PC용 CrowShow에서 열 수 있습니다.');
   if (file.size > 64 * 1024 * 1024) throw new Error('한글 문서는 64 MB까지 열 수 있습니다.');
+  if (!isTauri()) {
+    const sourceBytes = new Uint8Array(await file.arrayBuffer());
+    return convertHwpToPdfInBrowser(sourceBytes, format);
+  }
   const { invoke } = await import('@tauri-apps/api/core');
   const response = await invoke<ArrayBuffer>('convert_hwp_to_pdf', await file.arrayBuffer(), {
     headers: {
@@ -42,6 +46,7 @@ export async function convertKoreanDocument(file: File, format: 'hwp' | 'hwpx', 
 }
 
 export async function clearHwpConversionCache(): Promise<void> {
+  if (!isTauri()) return;
   const { invoke } = await import('@tauri-apps/api/core');
   await invoke('clear_hwp_conversion_cache');
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import crowTeacherIcon from '../assets/crow-teacher-toolbar.png';
 import type { TransitionType } from '../types/presentation';
 import type { TransitionSound } from '../types/settings';
 import { ChevronDown, Download, FileDown, FolderOpen, Layers, MonitorPlay, Play, Redo2, Save, Settings, Printer, Undo2, Upload, Volume2, CircleHelp } from 'lucide-react';
@@ -37,7 +38,11 @@ export const HeaderToolbar: React.FC<HeaderToolbarProps> = ({ hasPdf, onOpenHelp
   }, [showSaveMenu]);
   return (
     <header className="fluent-command-bar" aria-label="CrowShow 명령 메뉴">
-      <div className="command-brand" title="Crow Science Lab"><img src="./yellow-billed-crow.png" alt="노란부리까마귀" /><span>CrowShow</span><small>v2.0</small></div>
+      <div className="command-brand" title="Crow Science Lab">
+        <img src={crowTeacherIcon} alt="" />
+        <span>CrowShow</span>
+        <small>v2.0</small>
+      </div>
       <button className="command-button" onClick={onOpenFile} title="문서 열기"><FolderOpen size={17} /><span>열기</span></button>
       {hasPdf && <button className="command-button primary" onClick={onStartPresentation} title="슬라이드쇼 (F5)"><Play size={16} fill="currentColor" /><span>슬라이드쇼</span></button>}
       <button className={`command-button note-command ${notesOpen?'active':''}`} onClick={onToggleNotes} aria-label="노트 (N)" title="노트 (N)" aria-pressed={notesOpen}><NotebookIcon size={18}/><span>노트</span></button>

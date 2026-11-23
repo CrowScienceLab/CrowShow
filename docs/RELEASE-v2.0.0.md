@@ -2,6 +2,8 @@
 
 ## 변경 사항
 
+- 발표 화면의 왼쪽 상단에 칠판을 가리키며 설명하는 까마구 교사 아이콘을 적용했습니다.
+
 - Windows용 CrowShow에서 **문서 열기** 또는 끌어 놓기로 PDF·HWP·HWPX를 엽니다. 한글 문서는 rhwp로 로컬 변환해 발표와 필기에 사용합니다.
 - 조판 검사에서 경고가 없는 로컬 PDF 변환본을 재사용합니다. **환경 설정 → 캐시 없이 한글 문서 열기**에서 원본을 새로 변환하거나 **한글 변환 캐시 비우기**로 전체 변환 캐시를 비울 수 있습니다.
 - **저장 → A4에 맞춰 PDF 저장**은 한글 문서의 각 페이지를 비율을 유지해 A4로 내보냅니다. 기본 PDF 저장은 원본 용지를 사용합니다.
@@ -17,6 +19,8 @@
 공개 여부는 [2.0 검증 결과](maintenance/2026-11-23-v2.0-hwp/REPORT.md)를 기준으로 결정합니다.
 
 ## English
+
+- The presentation toolbar features the Crow Science Lab teacher mascot at the chalkboard.
 
 - Open HWP and HWPX documents through local PDF conversion and use them in the presentation and annotation tools.
 - Reopen identical documents using the local conversion cache. Clear it from Settings.

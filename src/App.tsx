@@ -27,11 +27,18 @@ import {
   isDesktopApp,
   koreanDocumentFormat,
   onDesktopOpenPdf,
+  openExternalLink,
   openPdfDefaultApps,
   resizeWorkspaceWindow,
   supportsKoreanDocuments,
   type DesktopPdfPayload,
 } from './utils/desktopBridge';
+import {
+  buildDriveUrls,
+  fetchRemoteDocument,
+  getRemoteQueryFromUrl,
+  type RemoteDocumentQuery,
+} from './utils/remoteDocumentLoader';
 
 import { StartScreen } from './components/StartScreen';
 import { HeaderToolbar } from './components/HeaderToolbar';
@@ -206,6 +213,13 @@ export const App: React.FC = () => {
   const referencePdfInputRef = useRef<HTMLInputElement | null>(null);
   const hwpRefreshInputRef = useRef<HTMLInputElement | null>(null);
   const [convertingDocument, setConvertingDocument] = useState(false);
+  const [remoteLoading, setRemoteLoading] = useState<string | null>(() => {
+    if (isDesktopApp()) return null;
+    const query = getRemoteQueryFromUrl();
+    if (!query || (query.mode === 'notebook' && !query.fileId && !query.url)) return null;
+    return query.title || '원격 수업 자료';
+  });
+  const [remoteError, setRemoteError] = useState<{ query: RemoteDocumentQuery; message: string } | null>(null);
   const [pendingHwpPreview, setPendingHwpPreview] = useState<{
     bytes: Uint8Array;
     name: string;
@@ -348,6 +362,58 @@ export const App: React.FC = () => {
       window.clearTimeout(updateTimer);
     };
   }, [loadPdfData]);
+
+  // Web query integration: open PDF/HWP/HWPX or Notebook requested from CrowScienceLab boards
+  useEffect(() => {
+    if (isDesktopApp()) return;
+    const query = getRemoteQueryFromUrl();
+    if (!query) return;
+
+    if (query.mode === 'notebook' && !query.fileId && !query.url) {
+      void openStandalone().then(() => setNotesOpen(true)).catch(() => {});
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const { bytes, fileName } = await fetchRemoteDocument(query);
+        if (cancelled) return;
+        const format = koreanDocumentFormat(fileName);
+        if (format) {
+          setConvertingDocument(true);
+          try {
+            const blob = new Blob([bytes as BlobPart], { type: 'application/octet-stream' });
+            const file = new File([blob], fileName);
+            const converted = await convertKoreanDocument(file, format, false);
+            if (cancelled) return;
+            await loadPdfData(converted.bytes, fileName, bytes.byteLength, true);
+          } finally {
+            setConvertingDocument(false);
+          }
+        } else {
+          await loadPdfData(bytes, fileName, bytes.byteLength, true);
+        }
+        if (!cancelled && query.mode === 'notebook') {
+          setNotesOpen(true);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        console.warn('Remote document load fallback:', err);
+        setRemoteError({
+          query,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        if (!cancelled) setRemoteLoading(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadPdfData, openStandalone]);
 
   useEffect(() => {
     if (!docInfo) return;
@@ -923,6 +989,27 @@ export const App: React.FC = () => {
         />
       )}
 
+      {remoteError && (
+        <ConfirmModal
+          title="교과 자료실 문서 열기 안내"
+          message={`[${remoteError.query.title || '선택한 자료'}] 원격 스트리밍 연결이 제한되었습니다 (${remoteError.message}). 원본 파일을 내려받아 이 화면에 끌어다 놓거나, Google Drive 미리보기로 열 수 있습니다.`}
+          confirmLabel="원본 다운로드 후 열기"
+          cancelLabel="Drive 미리보기 열기"
+          confirmStyle="primary"
+          onConfirm={() => {
+            const { downloadUrl } = buildDriveUrls(remoteError.query.fileId, remoteError.query.url);
+            void openExternalLink(downloadUrl);
+            setRemoteError(null);
+          }}
+          onCancel={() => setRemoteError(null)}
+          onSecondaryAction={() => {
+            const { previewUrl } = buildDriveUrls(remoteError.query.fileId, remoteError.query.url);
+            void openExternalLink(previewUrl);
+            setRemoteError(null);
+          }}
+        />
+      )}
+
       {!docInfo && !notesOpen ? (
         <StartScreen
           onOpenHelp={() => setShowHelp(true)}
@@ -1078,6 +1165,7 @@ export const App: React.FC = () => {
       {printOpen&&pdfDoc&&<PrintDialog pdf={pdfDoc} annotations={annotationStore.getAllAnnotations()} onClose={()=>setPrintOpen(false)}/>}
       {editBusy&&<div className="edit-progress" role="status">PDF 페이지 편집 중…</div>}
       {convertingDocument && <div className="edit-progress" role="status">한글 문서를 PDF로 변환 중…</div>}
+      {remoteLoading && !convertingDocument && <div className="edit-progress" role="status">교과 자료실에서 [{remoteLoading}] 불러오는 중…</div>}
 
       {/* MODALS */}
       {showGoToModal && docInfo && (
